@@ -38,8 +38,26 @@ class Tests(unittest.IsolatedAsyncioTestCase):
                     return path
                 if case == 'upload_error':
                     msg.reply_document.side_effect = TelegramError('offline')
-                with patch('media_bot.bot.download_async', side_effect=fake), patch('media_bot.bot.MAX_UPLOAD_BYTES', 5 if case == 'too_large' else 50_000_000):
-                    await MediaBot(Settings('123456:TOKEN')).process(update, 'https://youtu.be/a')
+                with (
+                    patch('media_bot.bot.download_async', side_effect=fake),
+                    patch(
+                        'media_bot.bot.MAX_UPLOAD_BYTES',
+                        5 if case == 'too_large' else 50_000_000,
+                    ),
+                    patch('media_bot.bot.Library.save_local') as save_local,
+                ):
+                    await MediaBot(Settings('123456:TOKEN')).process(
+                        update, 'https://youtu.be/a'
+                    )
+
+                    if case in ('success', 'upload_error'):
+                        save_local.assert_called_once_with(
+                        folders[0] / 'media.mp4',
+                        2,
+                    )
+                    else:
+                        save_local.assert_not_called()
+                            
                 self.assertFalse(folders[0].exists())
                 self.assertEqual(folders[0].parent, Path(__file__).resolve().parents[1] / 'work')
                 self.assertEqual(msg.reply_document.await_count, int(case in ['success', 'upload_error']))

@@ -1,4 +1,12 @@
 import logging
+
+"""O asyncio é uma biblioteca padrão do Python usada para escrever código concorrente utilizando a sintaxe async/await. 
+Ele é ideal para tarefas estruturadas de alto nível e operações vinculadas a E/S (I/O-bound), como requisições web, 
+consultas a bancos de dados e leitura/escrita de arquivos, permitindo que o programa execute outras tarefas 
+enquanto aguarda a resposta dessas operações de rede ou disco."""
+
+import asyncio
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -111,6 +119,11 @@ class MediaBot:
                 if path.stat().st_size >= MAX_UPLOAD_BYTES:
                     await status.edit_text('O arquivo ficou com 50 MB ou mais e não pode ser enviado. Tente um vídeo menor ou /audio.')
                     return
+                await asyncio.to_thread(
+                    self.library.save_local,
+                    path,
+                    update.effective_user.id,
+                )
                 with path.open('rb') as media:
                     await message.reply_document(document=media, filename=path.name,
                                                  read_timeout=120, write_timeout=120,
