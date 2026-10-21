@@ -37,6 +37,7 @@ Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling 
 - `/audio` e depois um link: baixa apenas o próximo link válido em MP3.
 - `/video`: desativa o modo de áudio pendente; também aceita `/video LINK`.
 - `/arquivos`: lista seus dez arquivos mais recentes, somente na conversa privada.
+- `/buscar palavra`: procura pelo nome nos seus arquivos e retorna até dez resultados, somente na conversa privada.
 - Documento anexado: salva na biblioteca, somente na conversa privada e abaixo de 20.000.000 bytes.
 
 O modo pendente é separado por usuário e chat e é perdido ao reiniciar. Um link inválido não consome o modo; uma tentativa válida de download consome, mesmo se falhar.
