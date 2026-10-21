@@ -77,3 +77,15 @@ class Library:
                               'ORDER BY created_at DESC, rowid DESC LIMIT 10', (owner_id,)).fetchall()
         finally:
             db.close()
+            
+    def search(self, owner_id: int, term: str):
+        db = self.connect()
+        try:
+            return db.execute(
+                'SELECT * FROM files '
+                'WHERE owner_id = ? AND instr(lower(name), lower(?)) > 0 '
+                'ORDER BY created_at DESC, rowid DESC LIMIT 10',
+                (owner_id, term),
+            ).fetchall()
+        finally:
+            db.close()

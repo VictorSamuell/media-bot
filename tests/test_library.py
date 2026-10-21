@@ -6,6 +6,8 @@ from unittest.mock import AsyncMock
 
 from media_bot.library import Library
 
+""" python -m unittest discover -s tests -v """
+
 
 class LibraryTests(unittest.IsolatedAsyncioTestCase):
     def test_save_local_preserves_file_and_owner(self):
@@ -56,3 +58,28 @@ class LibraryTests(unittest.IsolatedAsyncioTestCase):
                 await library.save(attachment, 42)
             self.assertEqual(list(root.iterdir()), [])
             self.assertEqual(library.recent(42), [])
+
+
+    def test_search_filters_by_name_and_owner(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            library = Library(root / 'library')
+
+            document = root / 'relatorio-final.pdf'
+            document.write_bytes(b'documento de teste')
+
+            video = root / 'video.mp4'
+            video.write_bytes(b'video de teste')
+
+            library.save_local(document, owner_id=42)
+            library.save_local(video, owner_id=42)
+            library.save_local(document, owner_id=99)
+
+            results = library.search(42, 'FINAL')
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]['name'], 'relatorio-final.pdf')
+            self.assertEqual(results[0]['owner_id'], 42)
+
+            self.assertEqual(library.search(42, 'inexistente'), [])
+            self.assertEqual(library.search(100, 'final'), [])
