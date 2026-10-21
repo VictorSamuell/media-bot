@@ -10,6 +10,8 @@ from media_bot.bot import MediaBot, build_application
 from media_bot.config import Settings
 from media_bot.downloader import download_async, validate_url
 
+""" python -m unittest discover -s tests -v """
+
 class Tests(unittest.IsolatedAsyncioTestCase):
     def test_validation(self):
         self.assertEqual(validate_url('https://youtu.be/a'), 'https://youtu.be/a')
@@ -19,7 +21,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
 
     def test_build(self):
         app = build_application(Settings('123456:TEST_TOKEN'))
-        self.assertEqual(len(app.handlers[0]), 6)
+        self.assertEqual(len(app.handlers[0]), 7)
 
     async def test_delivery_and_cleanup(self):
         for case in ['success', 'upload_error', 'download_error', 'too_large']:
@@ -98,6 +100,57 @@ class Tests(unittest.IsolatedAsyncioTestCase):
                 finish.set()
             with self.assertRaises(asyncio.CancelledError):
                 await task
+    
+    async def test_search_command(self):
+        message = SimpleNamespace(reply_text=AsyncMock())
+        update = SimpleNamespace(
+            message=message,
+            effective_chat=SimpleNamespace(id=1, type='private'),
+            effective_user=SimpleNamespace(id=42),
+        )
+        bot = MediaBot(Settings('123456:TOKEN'))
 
+        with patch.object(bot.library, 'search') as search:
+            # Sem palavra: explica o uso e não consulta o banco.
+            await bot.search(update, SimpleNamespace(args=[]))
+            search.assert_not_called()
+            message.reply_text.assert_awaited_once_with(
+                'Use /buscar seguido de um nome. Exemplo: /buscar final'
+            )
+
+            message.reply_text.reset_mock()
+
+            # Com resultado: passa usuário e termo para a biblioteca.
+            search.return_value = [
+                {'name': 'relatorio-final.pdf', 'size': 100}
+            ]
+            await bot.search(
+                update, SimpleNamespace(args=['relatorio', 'final'])
+            )
+            search.assert_called_once_with(42, 'relatorio final')
+            message.reply_text.assert_awaited_once_with(
+                'Arquivos encontrados:\nrelatorio-final.pdf (100 bytes)'
+            )
+
+            message.reply_text.reset_mock()
+            search.reset_mock()
+
+            # Sem resultado: informa que não encontrou.
+            search.return_value = []
+            await bot.search(update, SimpleNamespace(args=['inexistente']))
+            message.reply_text.assert_awaited_once_with(
+                'Nenhum arquivo encontrado.'
+            )
+
+            message.reply_text.reset_mock()
+            search.reset_mock()
+
+            # Em grupo: não consulta nem mostra os arquivos.
+            update.effective_chat.type = 'group'
+            await bot.search(update, SimpleNamespace(args=['final']))
+            search.assert_not_called()
+            message.reply_text.assert_awaited_once_with(
+                'Pesquise na conversa privada com o bot.'
+            )
 if __name__ == '__main__':
     unittest.main()

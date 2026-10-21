@@ -78,6 +78,40 @@ class MediaBot:
         text = '\n'.join(f'{row["name"]} ({row["size"]:,} bytes)' for row in rows)
         await update.message.reply_text('Seus últimos documentos:\n' + text if rows else 'Sua biblioteca ainda está vazia.')
 
+    async def search(self, update, context):
+        if not await self.authorized(update):
+            return
+
+        if update.effective_chat.type != 'private':
+            await update.message.reply_text(
+                'Pesquise na conversa privada com o bot.'
+            )
+            return
+
+        term = ' '.join(context.args).strip()
+
+        if not term:
+            await update.message.reply_text(
+                'Use /buscar seguido de um nome. Exemplo: /buscar final'
+            )
+            return
+
+        rows = await asyncio.to_thread(
+            self.library.search,
+            update.effective_user.id,
+            term,
+        )
+
+        if not rows:
+            await update.message.reply_text('Nenhum arquivo encontrado.')
+            return
+
+        text = '\n'.join(
+            f'{row["name"]} ({row["size"]:,} bytes)'
+            for row in rows
+        )
+        await update.message.reply_text('Arquivos encontrados:\n' + text)
+
     async def audio(self, update, context):
         if not await self.authorized(update):
             return
@@ -157,6 +191,7 @@ def build_application(settings):
     app.add_handler(CommandHandler('audio', handlers.audio))
     app.add_handler(CommandHandler('video', handlers.video))
     app.add_handler(CommandHandler('arquivos', handlers.files))
+    app.add_handler(CommandHandler('buscar', handlers.search))
     app.add_handler(MessageHandler(filters.Document.ALL, handlers.document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.text))
     app.add_error_handler(on_error)
