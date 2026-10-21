@@ -1,13 +1,10 @@
 # Downloader de Mídia — Telegram Bot
 
-**Nova etapa: biblioteca de documentos.** Envie um documento menor que 20 MB
-na conversa privada e use `/arquivos` para listar os últimos dez documentos.
-Eles ficam persistidos em `data/`; os downloads de links continuam temporários.
-Veja [PRIMEIRA-ETAPA.md](PRIMEIRA-ETAPA.md) para testar e implementar sua primeira tarefa.
+Bot Python com polling, async/await, yt-dlp via módulo e FFmpeg. Recebe links do YouTube, Instagram e TikTok, guarda os downloads abaixo do limite de envio na biblioteca local e devolve MP4 ou MP3 como documento.
 
-**Para ligar o bot já configurado neste PC, siga o [passo a passo LEIA-ME.md](LEIA-ME.md).**
-
-Bot Python com polling, async/await, yt-dlp via módulo e FFmpeg. Recebe links do YouTube, Instagram e TikTok e devolve MP4 ou MP3 como documento.
+Também guarda documentos menores que 20 MB enviados na conversa privada.
+Use `/arquivos` para listar seus dez arquivos mais recentes. A biblioteca fica
+em `data/` e permanece salva após reiniciar o bot.
 
 ## Executar no Windows
 
@@ -39,8 +36,20 @@ Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling 
 - `/audio LINK`: baixa MP3.
 - `/audio` e depois um link: baixa apenas o próximo link válido em MP3.
 - `/video`: desativa o modo de áudio pendente; também aceita `/video LINK`.
+- `/arquivos`: lista seus dez arquivos mais recentes, somente na conversa privada.
+- Documento anexado: salva na biblioteca, somente na conversa privada e abaixo de 20.000.000 bytes.
 
 O modo pendente é separado por usuário e chat e é perdido ao reiniciar. Um link inválido não consome o modo; uma tentativa válida de download consome, mesmo se falhar.
+
+## Biblioteca local
+
+- Downloads de links com menos de 50.000.000 bytes são copiados para a biblioteca antes do envio ao Telegram. Se o envio falhar, a cópia já salva permanece.
+- Downloads que atingem ou ultrapassam esse limite não são guardados na biblioteca nem enviados.
+- Os downloads aparecem como `media.mp4` ou `media.mp3`. Cada cópia recebe um identificador único no disco, evitando sobrescrever arquivos com o mesmo nome.
+- Fotos, vídeos e áudios anexados precisam ser enviados como **arquivo/documento** nesta versão. Anexos enviados como mídia ou mensagem de voz ainda não são tratados.
+- O banco SQLite `data/library.sqlite3` registra nome, tamanho, proprietário e data. `/arquivos` lista apenas os registros do usuário que executou o comando.
+- Ainda não há painel, busca, reenvio de arquivos salvos, exclusão ou limite total de armazenamento. Downloads repetidos ocupam espaço novamente.
+- Para fazer backup, pare o bot e copie toda a pasta `data/`, incluindo o banco e os arquivos. Não publique `data/` nem `.env` no GitHub.
 
 ## Configuração
 
@@ -49,10 +58,10 @@ Veja `.env.example`. `ALLOWED_USER_IDS` restringe o bot aos IDs separados por v�
 ## Comportamento e limites
 
 - Seleciona a melhor qualidade disponível, sem redução automática para caber no limite.
-- Recusa arquivo final maior ou igual a 50.000.000 bytes. O [limite documentado de envio é 50 MB](https://core.telegram.org/bots/api#senddocument).
-- Usa uma pasta temporária por solicitação dentro de `work/` no projeto, evitando restrições da pasta temporária do Windows, e remove arquivos após sucesso ou falha de download, conversão e envio.
+- O bot limita o arquivo final a menos de 50.000.000 bytes para envio. Consulte também a [documentação do Telegram](https://core.telegram.org/bots/api#senddocument).
+- Usa uma pasta temporária por solicitação dentro de `work/` no projeto, evitando restrições da pasta temporária do Windows. Ao sair desse processamento, remove os temporários; a cópia já salva em `data/` permanece.
 - Downloads rodam em uma thread. Solicitações são processadas uma de cada vez; novas mensagens aguardam durante o download.
-- Cancelamento normal aguarda o worker antes de limpar. Encerramento forçado ou queda de energia pode deixar arquivos temporários.
+- O download aguarda seu worker em caso de cancelamento antes da limpeza. A cópia para a biblioteca ainda não tem a mesma proteção contra cancelamento; evite interromper o bot durante essa etapa. Encerramento forçado ou queda de energia pode deixar arquivos incompletos ou sem registro.
 - Links privados, lives, playlists e conteúdo que exige login não são suportados. Sites podem mudar e exigir atualização do yt-dlp.
 - O limite de envio é verificado após a conversão. Reserve espaço para originais e intermediários maiores que 50 MB.
 - A validação limita domínios iniciais às três plataformas; hospedagem pública requer também controles de rede e recursos no servidor.
@@ -65,11 +74,14 @@ Veja `.env.example`. `ALLOWED_USER_IDS` restringe o bot aos IDs separados por v�
 
 Os testes simulam download e envio para verificar limpeza, erros, limite de tamanho, comandos e cancelamento, sem token. O teste real exige configurar o token e enviar um link ao bot.
 
+Os testes da biblioteca usam arquivos e SQLite em pastas temporárias para verificar persistência, isolamento entre usuários, cópia local e limpeza após falhas. Os testes do fluxo do bot simulam o armazenamento para não alterar sua biblioteca real.
+
 ## Estrutura
 
 - `media_bot/config.py`: configuração e verificação do FFmpeg.
 - `media_bot/downloader.py`: validação, download e conversão.
 - `media_bot/bot.py`: comandos, envio e limpeza.
+- `media_bot/library.py`: armazenamento de arquivos e metadados em SQLite.
 - `media_bot/__main__.py`: inicialização.
 - `requirements.txt`: dependências.
 
