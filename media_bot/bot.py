@@ -6,6 +6,9 @@ consultas a bancos de dados e leitura/escrita de arquivos, permitindo que o prog
 enquanto aguarda a resposta dessas operações de rede ou disco."""
 
 import asyncio
+import re
+import secrets
+from time import monotonic
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -27,6 +30,7 @@ class MediaBot:
         self.settings = settings
         self.audio_pending: set[tuple[int, int]] = set()
         self.library = Library(Path(__file__).resolve().parents[1] / 'data')
+        self.delete_pending = {}
 
     async def authorized(self, update):
         if not update.message or not update.effective_user:
@@ -47,6 +51,10 @@ class MediaBot:
                 'Use /video para voltar ao vídeo. Um arquivo por vez, abaixo de 50 MB.\n'
                 'Envie um documento em conversa privada para guardar na biblioteca.\n'
                 'Use /arquivos para listar seus últimos documentos.\n'
+                'Use /buscar palavra para pesquisar e /baixar ID para receber um arquivo salvo.\n'
+                '/renomear ID novo nome: altera o nome do arquivo.\n'
+                '/excluir ID: pede confirmação para apagar. /cancelar: cancela a exclusão.\n'
+                '/espaco: mostra a quantidade e o tamanho dos seus arquivos.\n'
                 f'Seu ID: {update.effective_user.id}')
 
     async def document(self, update, context):
@@ -75,7 +83,7 @@ class MediaBot:
             await update.message.reply_text('Consulte sua biblioteca na conversa privada com o bot.')
             return
         rows = self.library.recent(update.effective_user.id)
-        text = '\n'.join(f'{row["name"]} ({row["size"]:,} bytes)' for row in rows)
+        text = self.format_files(rows)
         await update.message.reply_text('Seus últimos documentos:\n' + text if rows else 'Sua biblioteca ainda está vazia.')
 
     async def search(self, update, context):
@@ -106,11 +114,128 @@ class MediaBot:
             await update.message.reply_text('Nenhum arquivo encontrado.')
             return
 
-        text = '\n'.join(
-            f'{row["name"]} ({row["size"]:,} bytes)'
+        text = self.format_files(rows)
+        await update.message.reply_text('Arquivos encontrados:\n' + text)
+
+    @staticmethod
+    def format_files(rows):
+        return '\n\n'.join(
+            f'{row["name"]} ({row["size"]:,} bytes)\n/baixar {row["id"]}'
             for row in rows
         )
-        await update.message.reply_text('Arquivos encontrados:\n' + text)
+
+    async def retrieve(self, update, context):
+        if not await self.authorized(update):
+            return
+        message = update.message
+        if update.effective_chat.type != 'private':
+            await message.reply_text('Baixe seus arquivos na conversa privada com o bot.')
+            return
+        if len(context.args) != 1 or not re.fullmatch(r'[0-9a-fA-F]{32}', context.args[0]):
+            await message.reply_text('Use /baixar ID. Copie o comando mostrado em /arquivos ou /buscar.')
+            return
+        file_id = context.args[0].lower()
+        row = await asyncio.to_thread(self.library.get, update.effective_user.id, file_id)
+        if row is None:
+            await message.reply_text('Arquivo não encontrado na sua biblioteca.')
+            return
+        path = self.library.root / file_id
+        try:
+            if path.stat().st_size >= MAX_UPLOAD_BYTES:
+                await message.reply_text('Este arquivo ultrapassa o limite de envio do bot.')
+                return
+            with path.open('rb') as media:
+                await message.reply_document(
+                    document=media, filename=row['name'],
+                    read_timeout=120, write_timeout=120, connect_timeout=30,
+                )
+        except FileNotFoundError:
+            await message.reply_text('O registro existe, mas o arquivo não está mais no armazenamento.')
+        except OSError:
+            await message.reply_text('Não consegui ler o arquivo salvo. Tente novamente.')
+        except TelegramError:
+            await message.reply_text('O envio falhou. O arquivo continua salvo; tente novamente.')
+
+    async def private_library(self, update):
+        if not await self.authorized(update):
+            return False
+        if update.effective_chat.type != 'private':
+            await update.message.reply_text('Use este comando na conversa privada com o bot.')
+            return False
+        return True
+
+    async def rename(self, update, context):
+        if not await self.private_library(update):
+            return
+        if len(context.args) < 2 or not re.fullmatch(r'[0-9a-fA-F]{32}', context.args[0]):
+            await update.message.reply_text('Use /renomear ID novo nome. Exemplo: /renomear ID aula Python.mp4')
+            return
+        name = ' '.join(context.args[1:]).strip()
+        try:
+            changed = await asyncio.to_thread(self.library.rename, update.effective_user.id,
+                                             context.args[0].lower(), name)
+        except ValueError as exc:
+            await update.message.reply_text(str(exc))
+            return
+        await update.message.reply_text(f'Arquivo renomeado para: {name}' if changed
+                                        else 'Arquivo não encontrado na sua biblioteca.')
+
+    async def space(self, update, context):
+        if not await self.private_library(update):
+            return
+        usage = await asyncio.to_thread(self.library.usage, update.effective_user.id)
+        await update.message.reply_text(
+            f'Sua biblioteca: {usage["count"]} arquivo(s).\n'
+            f'Tamanho registrado: {usage["bytes"]:,} bytes ({usage["bytes"] / 1_000_000:.2f} MB).'
+        )
+
+    async def delete(self, update, context):
+        if not await self.private_library(update):
+            return
+        if len(context.args) != 1 or not re.fullmatch(r'[0-9a-fA-F]{32}', context.args[0]):
+            await update.message.reply_text('Use /excluir ID. Encontre o ID em /arquivos ou /buscar.')
+            return
+        file_id = context.args[0].lower()
+        row = await asyncio.to_thread(self.library.get, update.effective_user.id, file_id)
+        if row is None:
+            await update.message.reply_text('Arquivo não encontrado na sua biblioteca.')
+            return
+        now = monotonic()
+        self.delete_pending = {key: value for key, value in self.delete_pending.items() if value[2] > now}
+        code = secrets.token_hex(4)
+        self.delete_pending[self.key(update)] = (file_id, code, now + 120)
+        await update.message.reply_text(
+            f'Excluir definitivamente da biblioteca: {row["name"]}?\n'
+            f'Confirme em até 2 minutos: /confirmar {code}\n'
+            'Ou use /cancelar. Isso não apaga mensagens já enviadas ao Telegram.'
+        )
+
+    async def confirm_delete(self, update, context):
+        if not await self.private_library(update):
+            return
+        key = self.key(update)
+        pending = self.delete_pending.get(key)
+        if pending is None or pending[2] <= monotonic():
+            self.delete_pending.pop(key, None)
+            await update.message.reply_text('Não há exclusão pendente ou a confirmação expirou. Use /excluir ID novamente.')
+            return
+        if context.args != [pending[1]]:
+            await update.message.reply_text('Código incorreto. Copie o comando de confirmação ou use /cancelar.')
+            return
+        self.delete_pending.pop(key)
+        try:
+            deleted = await asyncio.to_thread(self.library.delete, update.effective_user.id, pending[0])
+        except OSError:
+            await update.message.reply_text('Não consegui remover o arquivo. Tente novamente com /excluir ID.')
+            return
+        await update.message.reply_text('Arquivo excluído da biblioteca.' if deleted
+                                        else 'Arquivo não encontrado na sua biblioteca.')
+
+    async def cancel_delete(self, update, context):
+        if not await self.private_library(update):
+            return
+        pending = self.delete_pending.pop(self.key(update), None)
+        await update.message.reply_text('Exclusão cancelada.' if pending else 'Não há exclusão pendente.')
 
     async def audio(self, update, context):
         if not await self.authorized(update):
@@ -192,6 +317,12 @@ def build_application(settings):
     app.add_handler(CommandHandler('video', handlers.video))
     app.add_handler(CommandHandler('arquivos', handlers.files))
     app.add_handler(CommandHandler('buscar', handlers.search))
+    app.add_handler(CommandHandler('baixar', handlers.retrieve))
+    app.add_handler(CommandHandler('renomear', handlers.rename))
+    app.add_handler(CommandHandler('espaco', handlers.space))
+    app.add_handler(CommandHandler('excluir', handlers.delete))
+    app.add_handler(CommandHandler('confirmar', handlers.confirm_delete))
+    app.add_handler(CommandHandler('cancelar', handlers.cancel_delete))
     app.add_handler(MessageHandler(filters.Document.ALL, handlers.document))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handlers.text))
     app.add_error_handler(on_error)

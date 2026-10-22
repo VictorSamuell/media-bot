@@ -21,7 +21,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
 
     def test_build(self):
         app = build_application(Settings('123456:TEST_TOKEN'))
-        self.assertEqual(len(app.handlers[0]), 7)
+        self.assertEqual(len(app.handlers[0]), 13)
 
     async def test_delivery_and_cleanup(self):
         for case in ['success', 'upload_error', 'download_error', 'too_large']:
@@ -75,7 +75,10 @@ class Tests(unittest.IsolatedAsyncioTestCase):
             path = folder / ('media.mp3' if mode == 'audio' else 'media.mp4')
             path.write_bytes(b'media')
             return path
-        with patch('media_bot.bot.download_async', side_effect=fake) as downloader:
+        with (
+            patch('media_bot.bot.download_async', side_effect=fake) as downloader,
+            patch('media_bot.bot.Library.save_local'),
+        ):
             await bot.process(update, 'https://youtu.be/a')
             self.assertEqual(downloader.call_args.args[1], 'audio')
             await bot.process(update, 'https://youtu.be/a')
@@ -122,14 +125,14 @@ class Tests(unittest.IsolatedAsyncioTestCase):
 
             # Com resultado: passa usuário e termo para a biblioteca.
             search.return_value = [
-                {'name': 'relatorio-final.pdf', 'size': 100}
+                {'id': 'a' * 32, 'name': 'relatorio-final.pdf', 'size': 100}
             ]
             await bot.search(
                 update, SimpleNamespace(args=['relatorio', 'final'])
             )
             search.assert_called_once_with(42, 'relatorio final')
             message.reply_text.assert_awaited_once_with(
-                'Arquivos encontrados:\nrelatorio-final.pdf (100 bytes)'
+                'Arquivos encontrados:\nrelatorio-final.pdf (100 bytes)\n/baixar ' + 'a' * 32
             )
 
             message.reply_text.reset_mock()

@@ -83,3 +83,26 @@ class LibraryTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(library.search(42, 'inexistente'), [])
             self.assertEqual(library.search(100, 'final'), [])
+            
+    def test_get_only_returns_owner_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            library = Library(root / 'library')
+
+            source = root / 'documento.pdf'
+            source.write_bytes(b'documento de teste')
+            file_id = library.save_local(source, owner_id=42)
+
+            # O dono consegue consultar o arquivo.
+            result = library.get(42, file_id)
+
+            self.assertIsNotNone(result)
+            self.assertEqual(result['id'], file_id)
+            self.assertEqual(result['name'], 'documento.pdf')
+            self.assertEqual(result['owner_id'], 42)
+
+            # Outro usuário não consegue consultar o mesmo arquivo.
+            self.assertIsNone(library.get(99, file_id))
+
+            # Um identificador inexistente não retorna registro.
+            self.assertIsNone(library.get(42, 'nao-existe'))

@@ -2,11 +2,53 @@
 import sqlite3
 """Biblioteca qque permite copiar arquivos (shutil)"""
 import shutil
+import re
 from pathlib import Path
 from uuid import uuid4
 
 
 class Library:
+    def rename(self, owner_id: int, file_id: str, name: str):
+        name = name.strip()
+        if not name or len(name) > 200 or name in ('.', '..') or any(
+            not c.isprintable() or c in '/\\:*?"<>|' for c in name
+        ):
+            raise ValueError('Use um nome de 1 a 200 caracteres, sem barras ou caracteres especiais de caminho.')
+        db = self.connect()
+        try:
+            with db:
+                return db.execute('UPDATE files SET name = ? WHERE owner_id = ? AND id = ?',
+                                  (name, owner_id, file_id)).rowcount == 1
+        finally:
+            db.close()
+
+    def usage(self, owner_id: int):
+        db = self.connect()
+        try:
+            row = db.execute('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes '
+                             'FROM files WHERE owner_id = ?', (owner_id,)).fetchone()
+            return dict(row)
+        finally:
+            db.close()
+
+    def delete(self, owner_id: int, file_id: str):
+        if not re.fullmatch(r'[0-9a-f]{32}', file_id):
+            return False
+        db = self.connect()
+        try:
+            with db:
+                db.execute('BEGIN IMMEDIATE')
+                row = db.execute('SELECT id FROM files WHERE owner_id = ? AND id = ?',
+                                 (owner_id, file_id)).fetchone()
+                if row is None:
+                    return False
+                # Se a remoção falhar, a transação mantém o registro para tentar novamente.
+                (self.root / file_id).unlink(missing_ok=True)
+                db.execute('DELETE FROM files WHERE owner_id = ? AND id = ?', (owner_id, file_id))
+                return True
+        finally:
+            db.close()
+
     def __init__(self, root: Path):
         self.root = root
 
@@ -87,5 +129,15 @@ class Library:
                 'ORDER BY created_at DESC, rowid DESC LIMIT 10',
                 (owner_id, term),
             ).fetchall()
+        finally:
+            db.close()
+            
+    def get(self, owner_id: int, file_id: str):
+        db = self.connect()
+        try:
+            return db.execute(
+                'SELECT * FROM files WHERE owner_id = ? AND id = ?',
+                (owner_id, file_id),
+            ).fetchone()
         finally:
             db.close()

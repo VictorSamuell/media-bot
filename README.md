@@ -38,6 +38,12 @@ Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling 
 - `/video`: desativa o modo de áudio pendente; também aceita `/video LINK`.
 - `/arquivos`: lista seus dez arquivos mais recentes, somente na conversa privada.
 - `/buscar palavra`: procura pelo nome nos seus arquivos e retorna até dez resultados, somente na conversa privada.
+- `/baixar ID`: reenvia um arquivo seu já salvo, somente na conversa privada. Copie o comando completo exibido em `/arquivos` ou `/buscar`.
+- `/renomear ID novo nome`: altera o nome usado na busca, listagem e reenvio. Inclua a extensão desejada, como `aula Python.mp4`; isso não converte o formato do arquivo.
+- `/espaco`: mostra a quantidade de arquivos e a soma dos tamanhos registrados do usuário, em bytes e MB decimais. Não mede espaço livre no disco, banco de dados ou arquivos temporários.
+- `/excluir ID`: mostra o nome do arquivo e solicita confirmação antes de remover a cópia da biblioteca.
+- `/confirmar CODIGO`: confirma a exclusão solicitada, com código válido por dois minutos e somente para o mesmo usuário e conversa.
+- `/cancelar`: cancela o pedido de exclusão pendente. Todos os comandos de gerenciamento funcionam somente em conversa privada.
 - Documento anexado: salva na biblioteca, somente na conversa privada e abaixo de 20.000.000 bytes.
 
 O modo pendente é separado por usuário e chat e é perdido ao reiniciar. Um link inválido não consome o modo; uma tentativa válida de download consome, mesmo se falhar.
@@ -49,7 +55,11 @@ O modo pendente é separado por usuário e chat e é perdido ao reiniciar. Um li
 - Os downloads aparecem como `media.mp4` ou `media.mp3`. Cada cópia recebe um identificador único no disco, evitando sobrescrever arquivos com o mesmo nome.
 - Fotos, vídeos e áudios anexados precisam ser enviados como **arquivo/documento** nesta versão. Anexos enviados como mídia ou mensagem de voz ainda não são tratados.
 - O banco SQLite `data/library.sqlite3` registra nome, tamanho, proprietário e data. `/arquivos` lista apenas os registros do usuário que executou o comando.
-- Ainda não há painel, busca, reenvio de arquivos salvos, exclusão ou limite total de armazenamento. Downloads repetidos ocupam espaço novamente.
+- O reenvio mantém a cópia na biblioteca e usa o nome registrado. IDs inexistentes ou de outros usuários não retornam arquivos. Se a cópia no disco estiver ausente, o bot informa que o registro existe, mas o conteúdo não está disponível.
+- Renomear aceita até 200 caracteres imprimíveis e rejeita separadores de caminho. O conteúdo e o identificador permanecem iguais.
+- Excluir remove o arquivo local e seu registro, sem apagar mensagens ou cópias já enviadas ao Telegram. Não há lixeira. Um novo pedido substitui a confirmação anterior; reiniciar o bot cancela confirmações pendentes.
+- Se o arquivo estiver ausente, confirmar a exclusão remove o registro restante. Se o sistema negar a remoção, o registro é mantido para nova tentativa. Disco e SQLite não compartilham uma transação atômica: uma interrupção entre remoção e confirmação no banco pode deixar um registro sem arquivo.
+- Ainda não há painel ou limite total de armazenamento. Downloads repetidos ocupam espaço novamente.
 - Para fazer backup, pare o bot e copie toda a pasta `data/`, incluindo o banco e os arquivos. Não publique `data/` nem `.env` no GitHub.
 
 ## Configuração
