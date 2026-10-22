@@ -29,6 +29,21 @@ No Telegram, abra [@BotFather](https://t.me/BotFather), envie `/newbot` e siga a
 
 Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling e não precisa de webhook. Execute apenas uma instância por token.
 
+## API local
+
+Com as dependências instaladas, execute em outro terminal na pasta do projeto:
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn media_bot.api:app --reload --host 127.0.0.1 --port 8000
+```
+
+Abra <http://127.0.0.1:8000/health> para receber `{"status":"ok"}`.
+A documentação interativa fica em <http://127.0.0.1:8000/docs>.
+Essa rota confirma apenas que a API responde; não verifica Telegram ou banco.
+A API roda separadamente do bot, sem precisar do token, e nesta etapa não
+disponibiliza arquivos da biblioteca. Use `--reload` apenas no desenvolvimento.
+Para encerrar o servidor, pressione Ctrl+C.
+
 ## Comandos
 
 - `/start` ou `/help`: instruções e seu ID do Telegram.
