@@ -305,7 +305,15 @@ class MediaBot:
 
 
 async def on_error(update, context):
-    logger.error('Erro no bot: %s', type(context.error).__name__)
+    # Tipos ajudam a diagnosticar sem registrar URLs com token ou dados do usuário.
+    error = context.error
+    causes = []
+    seen = set()
+    while error is not None and id(error) not in seen and len(causes) < 8:
+        seen.add(id(error))
+        causes.append(type(error).__name__)
+        error = error.__cause__ or error.__context__
+    logger.error('Erro no bot: %s', ' -> '.join(causes))
 
 
 def build_application(settings):
