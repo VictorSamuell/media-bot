@@ -53,6 +53,7 @@ Para encerrar o servidor, pressione Ctrl+C.
 - `/video`: desativa o modo de áudio pendente; também aceita `/video LINK`.
 - `/arquivos`: lista seus dez arquivos mais recentes, somente na conversa privada.
 - `/buscar palavra`: procura pelo nome nos seus arquivos e retorna até dez resultados, somente na conversa privada.
+  A busca ignora maiúsculas, minúsculas e acentos: `relatorio` encontra `Relatório.pdf` e `acao` encontra `AÇÃO.mp4`. O nome original é preservado; não é necessário reenviar arquivos antigos.
 - `/baixar ID`: reenvia um arquivo seu já salvo, somente na conversa privada. Copie o comando completo exibido em `/arquivos` ou `/buscar`.
 - `/renomear ID novo nome`: altera o nome usado na busca, listagem e reenvio. Inclua a extensão desejada, como `aula Python.mp4`; isso não converte o formato do arquivo.
 - `/espaco`: mostra a quantidade de arquivos e a soma dos tamanhos registrados do usuário, em bytes e MB decimais. Não mede espaço livre no disco, banco de dados ou arquivos temporários.

@@ -3,8 +3,17 @@ import sqlite3
 """Biblioteca qque permite copiar arquivos (shutil)"""
 import shutil
 import re
+import unicodedata
 from pathlib import Path
 from uuid import uuid4
+
+
+def normalize_search(text: str) -> str:
+    """Normaliza apenas para comparação, preservando o nome original salvo."""
+    return ''.join(
+        character for character in unicodedata.normalize('NFD', text.casefold())
+        if unicodedata.category(character) != 'Mn'
+    )
 
 
 class Library:
@@ -121,11 +130,15 @@ class Library:
             db.close()
             
     def search(self, owner_id: int, term: str):
+        term = normalize_search(term.strip())
+        if not term:
+            return []
         db = self.connect()
         try:
+            db.create_function('normalize_search', 1, normalize_search, deterministic=True)
             return db.execute(
                 'SELECT * FROM files '
-                'WHERE owner_id = ? AND instr(lower(name), lower(?)) > 0 '
+                'WHERE owner_id = ? AND instr(normalize_search(name), ?) > 0 '
                 'ORDER BY created_at DESC, rowid DESC LIMIT 10',
                 (owner_id, term),
             ).fetchall()
