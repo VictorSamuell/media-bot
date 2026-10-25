@@ -65,3 +65,42 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((await client.get('/api/files')).status_code,503)
             finally:
                 app.dependency_overrides.clear()
+
+    async def test_rename_persists_validates_and_isolates_owner(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from media_bot.api import library
+        from media_bot.library import Library
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            store = Library(root / 'library')
+            source = root / 'original.txt'
+            source.write_bytes(b'original content')
+            own = store.save_local(source, 42)
+            other = store.save_local(source, 99)
+            app.dependency_overrides[library] = lambda: store
+            try:
+                with patch.dict(os.environ, {'PANEL_OWNER_ID':'42', 'PANEL_ACCESS_KEY':'x'*32}):
+                    async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+                        headers = {'Authorization':'Bearer ' + 'x'*32}
+                        url = f'/api/files/{own}'
+                        self.assertEqual((await client.patch(url, json={'name':'blocked.txt'})).status_code,401)
+                        for name in ('', '   ', '../escape.txt', 'a/b.txt', 'a'*201):
+                            with self.subTest(name=name):
+                                self.assertEqual((await client.patch(url, headers=headers, json={'name':name})).status_code,400)
+                        self.assertEqual((await client.patch(url, headers=headers, json={'name':123})).status_code,422)
+                        for identifier in (other, '0'*32, 'invalid'):
+                            self.assertEqual((await client.patch(f'/api/files/{identifier}', headers=headers, json={'name':'changed.txt'})).status_code,404)
+                        self.assertEqual(store.get(99, other)['name'], 'original.txt')
+                        response = await client.patch(url, headers=headers, json={'name':'  novo nome.txt  '})
+                        self.assertEqual(response.status_code,200)
+                        self.assertEqual(response.json()['name'],'novo nome.txt')
+                        reopened = Library(store.root)
+                        self.assertEqual(reopened.search(42, 'novo nome')[0]['id'],own)
+                        self.assertEqual(reopened.get(42,own)['name'],'novo nome.txt')
+                        self.assertEqual((await client.get('/api/files', headers=headers)).json()['files'][0]['name'],'novo nome.txt')
+                        download = await client.get(url+'/download', headers=headers)
+                        self.assertEqual(download.content,b'original content')
+                        self.assertIn('novo%20nome.txt',download.headers['content-disposition'])
+            finally:
+                app.dependency_overrides.clear()

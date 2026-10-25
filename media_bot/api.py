@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, StrictStr
 
 from media_bot.library import Library
 
@@ -55,3 +56,21 @@ def download(file_id: str, owner_id: int = Depends(owner), store: Library = Depe
     return FileResponse(store.root / file_id, filename=row['name'],
                         media_type='application/octet-stream',
                         headers={'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+
+
+class RenameFile(BaseModel):
+    name: StrictStr
+
+
+@app.patch('/api/files/{file_id}')
+def rename_file(file_id: str, body: RenameFile, owner_id: int = Depends(owner),
+                store: Library = Depends(library)):
+    if not re.fullmatch(r'[0-9a-f]{32}', file_id) or store.get(owner_id, file_id) is None:
+        raise HTTPException(404, 'Arquivo não encontrado.')
+    try:
+        changed = store.rename(owner_id, file_id, body.name)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from None
+    if not changed:
+        raise HTTPException(404, 'Arquivo não encontrado.')
+    return {'id': file_id, 'name': body.name.strip()}

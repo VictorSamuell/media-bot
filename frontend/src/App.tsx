@@ -1,3 +1,4 @@
+import RenameForm from "./RenameForm";
 import { useState } from "react";
 import { kinds, icons, category, request, type MediaFile } from "./library";
 import "./App.css";
@@ -317,6 +318,9 @@ export default function App() {
               <button className="primary" onClick={() => download(selected)}>
                 Baixar arquivo ↓
               </button>
+              <RenameForm key={selected.id} file={selected} accessKey={key} onRenamed={(id, name) => {
+                setFiles(previous => previous.map(file => file.id === id ? {...file, name, kind: category(name)} : file));
+              }} />
               <p className="disclaimer">
                 Arquivo disponível na biblioteca do bot.
               </p>

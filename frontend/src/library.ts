@@ -31,14 +31,15 @@ export function category(name: string): Kind {
     return "Documentos";
   return "Outros";
 }
-export async function request(path: string, key: string) {
+export async function request(path: string, key: string, options: RequestInit = {}) {
   const response = await fetch(path, {
-    headers: { Authorization: `Bearer ${key}` },
+    ...options,
+    headers: { ...options.headers, Authorization: `Bearer ${key}` },
     cache: "no-store",
   });
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new Error(body?.detail || `Falha na API (${response.status}).`);
+    throw new Error((typeof body?.detail === "string" ? body.detail : "") || `Falha na API (${response.status}).`);
   }
   return response;
 }

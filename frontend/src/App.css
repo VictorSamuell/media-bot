@@ -1203,3 +1203,7 @@ main {
 .cover-title {
   font-size: clamp(18px, 2vw, 30px);
 }
+.rename-panel { margin-top: 20px; }
+.rename-panel input { display:block; width:100%; padding:12px; margin-top:8px; background:#111821; color:#fff; border:1px solid #617d96; }
+.rename-actions { display:flex; gap:16px; align-items:center; }
+.rename-panel [role=status] { color:#9fdbb7; }

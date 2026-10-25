@@ -52,5 +52,6 @@ O download retorna o arquivo original com seu nome salvo.
 `npm run build` verifica TypeScript e gera `dist/`. O build sozinho não inclui a API
 nem o proxy do servidor de desenvolvimento.
 
-A integração atual permite listar e baixar arquivos. Renomear e excluir continuam
-pelo bot. As capas são representações dos nomes, não miniaturas extraídas da mídia.
+A integração atual permite listar, baixar e renomear arquivos. Abra os detalhes,
+clique em Renomear arquivo e salve o novo nome, incluindo a extensão. A alteração
+também aparece no bot porque ambos usam a mesma biblioteca. Excluir continua pelo bot. As capas são representações dos nomes, não miniaturas extraídas da mídia.
