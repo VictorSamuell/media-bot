@@ -132,3 +132,12 @@ Os testes da biblioteca usam arquivos e SQLite em pastas temporárias para verif
 - `requirements.txt`: dependências.
 
 Referências: [python-telegram-bot](https://docs.python-telegram-bot.org/en/stable/telegram.ext.application.html) e [yt-dlp](https://github.com/yt-dlp/yt-dlp#embedding-yt-dlp).
+
+### Escolher o nome antes de salvar
+
+Ao receber um documento privado ou um link (inclusive `/audio LINK` e `/video LINK`),
+o bot pergunta o nome. Responda em até cinco minutos; a extensão original é mantida.
+Use `/original` para manter o nome e `/cancelar` para desistir antes do processamento.
+Enquanto aguarda um nome, outro envio não substitui o pedido pendente.
+Pedidos ficam na memória: se reiniciar o bot, envie o documento ou link novamente.
+O comando `/baixar ID` continua reenviando o arquivo com o nome já salvo na biblioteca.

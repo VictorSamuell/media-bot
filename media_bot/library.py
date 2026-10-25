@@ -73,14 +73,14 @@ class Library:
         connection.execute('CREATE INDEX IF NOT EXISTS files_owner ON files(owner_id)')
         return connection
 
-    async def save(self, attachment, owner_id: int):
+    async def save(self, attachment, owner_id: int, name: str | None = None):
         file_id = uuid4().hex
         self.root.mkdir(parents=True, exist_ok=True)
         path = self.root / file_id
         try:
             remote = await attachment.get_file()
             await remote.download_to_drive(custom_path=path)
-            name = (attachment.file_name or 'documento').replace('\\', '/').rsplit('/', 1)[-1]
+            name = (name or attachment.file_name or 'documento').replace('\\', '/').rsplit('/', 1)[-1]
             name = ''.join(c for c in name if c.isprintable())[:200] or 'documento'
             db = self.connect()
             try:

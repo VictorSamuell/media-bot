@@ -21,7 +21,7 @@ class Tests(unittest.IsolatedAsyncioTestCase):
 
     def test_build(self):
         app = build_application(Settings('123456:TEST_TOKEN'))
-        self.assertEqual(len(app.handlers[0]), 13)
+        self.assertEqual(len(app.handlers[0]), 14)
 
     async def test_delivery_and_cleanup(self):
         for case in ['success', 'upload_error', 'download_error', 'too_large']:

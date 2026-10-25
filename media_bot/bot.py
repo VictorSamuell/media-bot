@@ -31,6 +31,7 @@ class MediaBot:
         self.audio_pending: set[tuple[int, int]] = set()
         self.library = Library(Path(__file__).resolve().parents[1] / 'data')
         self.delete_pending = {}
+        self.name_pending = {}
 
     async def authorized(self, update):
         if not update.message or not update.effective_user:
@@ -53,7 +54,8 @@ class MediaBot:
                 'Use /arquivos para listar seus últimos documentos.\n'
                 'Use /buscar palavra para pesquisar e /baixar ID para receber um arquivo salvo.\n'
                 '/renomear ID novo nome: altera o nome do arquivo.\n'
-                '/excluir ID: pede confirmação para apagar. /cancelar: cancela a exclusão.\n'
+                '/excluir ID: pede confirmação para apagar. /cancelar: cancela a operação pendente.\n'
+                'Ao enviar arquivo ou link, escolha um nome ou use /original.\n'
                 '/espaco: mostra a quantidade e o tamanho dos seus arquivos.\n'
                 f'Seu ID: {update.effective_user.id}')
 
@@ -68,13 +70,71 @@ class MediaBot:
         if attachment.file_size is None or attachment.file_size >= 20_000_000:
             await update.message.reply_text('Nesta primeira versão, envie documentos menores que 20 MB.')
             return
+        await self.ask_name(update, 'document', attachment, None)
+
+    async def ask_name(self, update, kind, payload, mode):
+        now = monotonic()
+        self.name_pending = {key: value for key, value in self.name_pending.items() if value[3] > now}
+        if self.key(update) in self.name_pending:
+            await update.message.reply_text('Já estou esperando um nome. Responda ou use /cancelar antes de enviar outro arquivo.')
+            return
+        self.name_pending[self.key(update)] = (kind, payload, mode, now + 300)
+        await update.message.reply_text(
+            'Qual nome você quer para o arquivo? Envie o nome em até 5 minutos. '
+            'Vou manter a extensão original. Use /original para manter o nome ou /cancelar para desistir.')
+
+    async def prepare_link(self, update, text):
         try:
-            await self.library.save(attachment, update.effective_user.id)
+            url = validate_url(text)
+        except ValueError as exc:
+            await update.message.reply_text(str(exc))
+            return
+        mode = 'audio' if self.key(update) in self.audio_pending else 'video'
+        await self.ask_name(update, 'link', url, mode)
+        self.audio_pending.discard(self.key(update))
+
+    @staticmethod
+    def chosen_name(name, original):
+        name = name.strip()
+        if not name or name in ('.', '..'):
+            raise ValueError('Envie um nome válido ou use /original.')
+        suffix = Path(original).suffix
+        if suffix and not name.lower().endswith(suffix.lower()):
+            name += suffix
+        if not name or len(name) > 200 or name in ('.', '..') or any(
+            not c.isprintable() or c in '/\\:*?"<>|' for c in name
+        ):
+            raise ValueError('Use um nome de até 200 caracteres, sem barras ou caracteres especiais de caminho.')
+        return name
+
+    async def finish_name(self, update, name):
+        pending = self.name_pending.get(self.key(update))
+        if pending is None or pending[3] <= monotonic():
+            self.name_pending.pop(self.key(update), None)
+            await update.message.reply_text('Não há arquivo aguardando nome ou o prazo expirou. Envie o arquivo ou link novamente.')
+            return
+        kind, payload, mode, _ = pending
+        original = (payload.file_name or 'documento') if kind == 'document' else ('media.mp3' if mode == 'audio' else 'media.mp4')
+        try:
+            chosen = self.chosen_name(name, original) if name is not None else None
+        except ValueError as exc:
+            await update.message.reply_text(str(exc))
+            return
+        self.name_pending.pop(self.key(update))
+        if kind == 'link':
+            await self.process(update, payload, chosen, mode)
+            return
+        try:
+            await self.library.save(payload, update.effective_user.id, name=chosen)
         except Exception as exc:
             logger.error('Falha ao salvar documento: %s', type(exc).__name__)
-            await update.message.reply_text('Não consegui guardar o documento. Tente novamente.')
+            await update.message.reply_text('Não consegui guardar o documento. Envie novamente para tentar.')
             return
         await update.message.reply_text('Documento salvo na biblioteca! Use /arquivos para consultar.')
+
+    async def original_name(self, update, context):
+        if await self.authorized(update):
+            await self.finish_name(update, None)
 
     async def files(self, update, context):
         if not await self.authorized(update):
@@ -232,7 +292,11 @@ class MediaBot:
                                         else 'Arquivo não encontrado na sua biblioteca.')
 
     async def cancel_delete(self, update, context):
-        if not await self.private_library(update):
+        if not await self.authorized(update):
+            return
+        naming = self.name_pending.pop(self.key(update), None)
+        if naming:
+            await update.message.reply_text('Envio cancelado. Nenhum arquivo foi salvo.')
             return
         pending = self.delete_pending.pop(self.key(update), None)
         await update.message.reply_text('Exclusão cancelada.' if pending else 'Não há exclusão pendente.')
@@ -242,7 +306,7 @@ class MediaBot:
             return
         self.audio_pending.add(self.key(update))
         if context.args:
-            await self.process(update, ' '.join(context.args))
+            await self.prepare_link(update, ' '.join(context.args))
         else:
             await update.message.reply_text('Envie o próximo link para baixar em MP3.')
 
@@ -251,15 +315,18 @@ class MediaBot:
             return
         self.audio_pending.discard(self.key(update))
         if context.args:
-            await self.process(update, ' '.join(context.args))
+            await self.prepare_link(update, ' '.join(context.args))
         else:
             await update.message.reply_text('Envie o próximo link para baixar em MP4.')
 
     async def text(self, update, context):
         if await self.authorized(update):
-            await self.process(update, update.message.text)
+            if self.key(update) in self.name_pending:
+                await self.finish_name(update, update.message.text)
+            else:
+                await self.prepare_link(update, update.message.text)
 
-    async def process(self, update, text):
+    async def process(self, update, text, chosen=None, selected_mode=None):
         message = update.message
         try:
             url = validate_url(text)
@@ -267,7 +334,7 @@ class MediaBot:
             await message.reply_text(str(exc))
             return
         key = self.key(update)
-        mode = 'audio' if key in self.audio_pending else 'video'
+        mode = selected_mode or ('audio' if key in self.audio_pending else 'video')
         self.audio_pending.discard(key)
         status = await message.reply_text('Baixando e processando...')
         try:
@@ -278,6 +345,11 @@ class MediaBot:
                 if path.stat().st_size >= MAX_UPLOAD_BYTES:
                     await status.edit_text('O arquivo ficou com 50 MB ou mais e não pode ser enviado. Tente um vídeo menor ou /audio.')
                     return
+                if chosen is not None:
+                    destination = path.with_name(self.chosen_name(chosen, path.name))
+                    if destination != path:
+                        path.rename(destination)
+                        path = destination
                 await asyncio.to_thread(
                     self.library.save_local,
                     path,
@@ -326,6 +398,7 @@ def build_application(settings):
     app.add_handler(CommandHandler('arquivos', handlers.files))
     app.add_handler(CommandHandler('buscar', handlers.search))
     app.add_handler(CommandHandler('baixar', handlers.retrieve))
+    app.add_handler(CommandHandler('original', handlers.original_name))
     app.add_handler(CommandHandler('renomear', handlers.rename))
     app.add_handler(CommandHandler('espaco', handlers.space))
     app.add_handler(CommandHandler('excluir', handlers.delete))
