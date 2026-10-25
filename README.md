@@ -29,6 +29,25 @@ No Telegram, abra [@BotFather](https://t.me/BotFather), envie `/newbot` e siga a
 
 Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling e não precisa de webhook. Execute apenas uma instância por token.
 
+## Painel local
+
+A interface em `frontend/` usa React, TypeScript e Vite. Ela permite explorar
+arquivos reais com busca sem acentos, filtros, ordenação, download e favoritos temporários.
+Configure PANEL_OWNER_ID e PANEL_ACCESS_KEY no .env e inicie a API na porta 8000.
+O passo a passo está em [frontend/README.md](frontend/README.md).
+
+Com Node.js 24 instalado:
+
+```powershell
+cd frontend
+npm ci
+npm run dev -- --host 127.0.0.1
+```
+
+Abra o endereço local mostrado no terminal. Use Ctrl+C para parar.
+Veja [frontend/README.md](frontend/README.md) para estrutura e limitações.
+O build pode ser validado com `npm run build` dentro de `frontend/`.
+
 ## API local
 
 Com as dependências instaladas, execute em outro terminal na pasta do projeto:
@@ -75,7 +94,7 @@ O modo pendente é separado por usuário e chat e é perdido ao reiniciar. Um li
 - Renomear aceita até 200 caracteres imprimíveis e rejeita separadores de caminho. O conteúdo e o identificador permanecem iguais.
 - Excluir remove o arquivo local e seu registro, sem apagar mensagens ou cópias já enviadas ao Telegram. Não há lixeira. Um novo pedido substitui a confirmação anterior; reiniciar o bot cancela confirmações pendentes.
 - Se o arquivo estiver ausente, confirmar a exclusão remove o registro restante. Se o sistema negar a remoção, o registro é mantido para nova tentativa. Disco e SQLite não compartilham uma transação atômica: uma interrupção entre remoção e confirmação no banco pode deixar um registro sem arquivo.
-- Ainda não há painel ou limite total de armazenamento. Downloads repetidos ocupam espaço novamente.
+- O painel local permite consulta e download; ainda não há limite total de armazenamento. Downloads repetidos ocupam espaço novamente.
 - Para fazer backup, pare o bot e copie toda a pasta `data/`, incluindo o banco e os arquivos. Não publique `data/` nem `.env` no GitHub.
 
 ## Configuração

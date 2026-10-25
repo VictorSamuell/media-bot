@@ -1,0 +1,515 @@
+import { useState } from "react";
+import { kinds, icons, category, request, type MediaFile } from "./library";
+import "./App.css";
+const normalize = (s: string) =>
+  s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+const mb = (n: number) =>
+  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB`;
+const art = (id: string) => (parseInt(id.slice(0, 6), 16) % 8) + 1;
+function Cover({ id, name }: { id: string; name: string }) {
+  return (
+    <div className={`cover art-${art(id)}`} aria-hidden="true">
+      <div className="cover-grid" />
+      <div className="orb" />
+      <div className="orbit" />
+      <span className="cover-edition">
+        MEDIA SAVER / {category(name).toUpperCase()}
+      </span>
+      <div className="cover-title">
+        <span>{name.replace(/\.[^.]+$/, "")}</span>
+      </div>
+      <span className="cover-bottom">EXPLORE. APRENDA. GUARDE.</span>
+    </div>
+  );
+}
+export default function App() {
+  const [files, setFiles] = useState<MediaFile[]>([]);
+  const [key, setKey] = useState("");
+  const [connected, setConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  async function refresh() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await request("/api/files", key);
+      const data = await response.json();
+      setFiles(
+        data.files.map(
+          (f: {
+            id: string;
+            name: string;
+            size: number;
+            created_at: string;
+          }) => ({
+            id: f.id,
+            name: f.name,
+            size: f.size / 1_000_000,
+            date: f.created_at,
+            kind: category(f.name),
+            note: `Salvo em ${new Date(f.created_at.replace(" ", "T") + "Z").toLocaleString("pt-BR")}`,
+          }),
+        ),
+      );
+      setConnected(true);
+      setFeature(0);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Não foi possível conectar à API.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+  async function download(file: MediaFile) {
+    setError("");
+    try {
+      const response = await request(`/api/files/${file.id}/download`, key);
+      const url = URL.createObjectURL(await response.blob());
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = file.name;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha no download.");
+    }
+  }
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState("Todos");
+  const [sort, setSort] = useState("recent");
+  const [favorites, setFavorites] = useState<string[]>([]);
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [detail, setDetail] = useState<string | null>(null);
+  const [view, setView] = useState<"grid" | "list">("grid");
+  const [feature, setFeature] = useState(0);
+  const visible = files
+    .filter(
+      (f) =>
+        (kind === "Todos" || f.kind === kind) &&
+        normalize(f.name).includes(normalize(query.trim())) &&
+        (!onlyFavorites || favorites.includes(f.id)),
+    )
+    .sort((a, b) =>
+      sort === "name"
+        ? a.name.localeCompare(b.name, "pt-BR")
+        : sort === "size"
+          ? b.size - a.size
+          : b.date.localeCompare(a.date),
+    );
+  const selected = files.find((f) => f.id === detail);
+  const featured = files[feature];
+  const featureCount = Math.min(files.length, 4);
+  const total = files.reduce((s, f) => s + f.size, 0);
+  function reset() {
+    setQuery("");
+    setKind("Todos");
+    setOnlyFavorites(false);
+    setDetail(null);
+  }
+  function favorite(id: string) {
+    setFavorites((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
+    );
+  }
+  if (!connected)
+    return (
+      <main className="login-panel">
+        <h1>Entre na sua biblioteca</h1>
+        <p>Use a chave local do painel. Ela é diferente do token do bot.</p>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void refresh();
+          }}
+        >
+          <label>
+            Chave de acesso
+            <input
+              type="password"
+              autoComplete="off"
+              required
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+            />
+          </label>
+          <button className="primary" disabled={loading}>
+            {loading ? "Conectando…" : "Abrir biblioteca"}
+          </button>
+        </form>
+        {error && <p role="alert">{error}</p>}
+      </main>
+    );
+  return (
+    <div className="steam-shell">
+      <header className="app-header">
+        <a href="#main" className="brand" onClick={reset}>
+          <span className="brand-mark">↘</span>MEDIA<span>SAVER</span>
+        </a>
+        <nav aria-label="Navegação principal">
+          <button className={!onlyFavorites ? "active" : ""} onClick={reset}>
+            BIBLIOTECA
+          </button>
+          <button
+            className={onlyFavorites ? "active" : ""}
+            onClick={() => {
+              reset();
+              setOnlyFavorites(true);
+            }}
+          >
+            FAVORITOS
+          </button>
+          <a href="https://t.me/media_vss_bot" target="_blank" rel="noreferrer">
+            TELEGRAM ↗
+          </a>
+        </nav>
+        <div className="user">
+          <span className="status-dot" />
+          LOCAL<span className="avatar">M</span>
+        </div>
+      </header>
+      <aside className="sidebar">
+        <button className="home" onClick={reset}>
+          ▦ <span>Página inicial</span>
+          <span>⌂</span>
+        </button>
+        <label className="sidebar-select">
+          <span className="sr-only">Filtrar por tipo</span>
+          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+            <option value="Todos">Todos os arquivos</option>
+            {kinds.map((k) => (
+              <option key={k}>{k}</option>
+            ))}
+          </select>
+        </label>
+        <label className="side-search">
+          <span>⌕</span>
+          <input
+            aria-label="Buscar arquivos"
+            placeholder="Buscar na biblioteca"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
+            <button onClick={() => setQuery("")} aria-label="Limpar busca">
+              ×
+            </button>
+          )}
+        </label>
+        <button
+          className={`section-label ${onlyFavorites ? "selected" : ""}`}
+          onClick={() => {
+            setOnlyFavorites(!onlyFavorites);
+            setDetail(null);
+          }}
+        >
+          ☆ FAVORITOS <span>({favorites.length})</span>
+        </button>
+        {favorites.length === 0 ? (
+          <p className="favorite-hint">
+            Marque uma estrela para guardar seus preferidos aqui.
+          </p>
+        ) : (
+          files
+            .filter((f) => favorites.includes(f.id))
+            .map((f) => (
+              <button
+                className="side-file"
+                key={f.id}
+                onClick={() => setDetail(f.id)}
+              >
+                <span className={`mini-art art-${art(f.id)}`}>
+                  {icons[f.kind]}
+                </span>
+                {f.name}
+              </button>
+            ))
+        )}
+        <div className="section-label">
+          SUA COLEÇÃO <span>({visible.length})</span>
+        </div>
+        <div className="side-files">
+          {visible.map((f) => (
+            <button
+              className={`side-file ${detail === f.id ? "selected" : ""}`}
+              key={f.id}
+              onClick={() => setDetail(f.id)}
+            >
+              <span className={`mini-art art-${art(f.id)}`}>
+                {icons[f.kind]}
+              </span>
+              <span>{f.name}</span>
+            </button>
+          ))}
+        </div>
+        <div className="side-storage">
+          <span>ARMAZENAMENTO</span>
+          <strong>{mb(total)}</strong>
+          <div className="storage-track">
+            <i />
+          </div>
+          <small>{files.length} arquivos · biblioteca local</small>
+        </div>
+      </aside>
+      <main id="main">
+        <div className="connection-tools">
+          <button disabled={loading} onClick={() => void refresh()}>
+            {loading ? "Atualizando…" : "Atualizar"}
+          </button>
+          <button
+            onClick={() => {
+              setConnected(false);
+              setFiles([]);
+              setKey("");
+              setFavorites([]);
+              setDetail(null);
+              setError("");
+            }}
+          >
+            Sair
+          </button>
+        </div>
+        {error && <p role="alert">{error}</p>}
+        <div className="breadcrumb">
+          Meu espaço <span>/</span> Biblioteca{" "}
+          <span className="demo-badge">LOCAL</span>
+        </div>
+        <div className="title-row">
+          <div>
+            <h1>
+              Sua próxima descoberta
+              <br />
+              já está na biblioteca.
+            </h1>
+            <p>Vídeos, ideias e inspirações. Tudo o que vale guardar.</p>
+          </div>
+          <span className="collection-count">
+            {files.length}{" "}
+            <small>
+              ARQUIVOS
+              <br />
+              NA COLEÇÃO
+            </small>
+          </span>
+        </div>
+        {selected ? (
+          <section className="detail-panel">
+            <Cover id={selected.id} name={selected.name} />
+            <div>
+              <button className="back" onClick={() => setDetail(null)}>
+                ← Voltar à biblioteca
+              </button>
+              <span className="kicker">{selected.kind} / ARQUIVO SALVO</span>
+              <h2>{selected.name}</h2>
+              <p>{selected.note}</p>
+              <div className="metadata">
+                <span>{mb(selected.size)}</span>
+                <span>{selected.name.split(".").pop()?.toUpperCase()}</span>
+              </div>
+              <button className="primary" onClick={() => favorite(selected.id)}>
+                {favorites.includes(selected.id)
+                  ? "★ Remover dos favoritos"
+                  : "☆ Adicionar aos favoritos"}
+              </button>
+              <button className="primary" onClick={() => download(selected)}>
+                Baixar arquivo ↓
+              </button>
+              <p className="disclaimer">
+                Arquivo disponível na biblioteca do bot.
+              </p>
+            </div>
+          </section>
+        ) : featured ? (
+          <section className="featured" aria-label="Destaques da biblioteca">
+            <div className="feature-visual">
+              <Cover id={featured.id} name={featured.name} />
+              <span className="feature-stamp">EM DESTAQUE</span>
+            </div>
+            <div className="feature-info">
+              <span className="kicker">DA SUA COLEÇÃO</span>
+              <h2>{featured.name.replace(/\.[^.]+$/, "")}</h2>
+              <p>
+                {featured.note}. Um espaço para revisitar o que inspira você.
+              </p>
+              <div className="metadata">
+                <span>{featured.kind}</span>
+                <span>{mb(featured.size)}</span>
+              </div>
+              <button
+                className="primary"
+                onClick={() => setDetail(featured.id)}
+              >
+                Explorar arquivo <span>→</span>
+              </button>
+              <div className="carousel">
+                <div className="dots">
+                  {files.slice(0, 4).map((f, i) => (
+                    <button
+                      key={f.id}
+                      className={feature === i ? "active" : ""}
+                      aria-label={`Destacar ${f.name}`}
+                      aria-pressed={feature === i}
+                      onClick={() => setFeature(i)}
+                    />
+                  ))}
+                </div>
+                <button
+                  aria-label="Destaque anterior"
+                  onClick={() =>
+                    setFeature((feature + featureCount - 1) % featureCount)
+                  }
+                >
+                  ‹
+                </button>
+                <button
+                  aria-label="Próximo destaque"
+                  onClick={() => setFeature((feature + 1) % featureCount)}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+        <section className="shelf" aria-label="Arquivos da biblioteca">
+          <div className="shelf-heading">
+            <h2>
+              {onlyFavorites
+                ? "Seus favoritos"
+                : query
+                  ? "Resultados da busca"
+                  : kind === "Todos"
+                    ? "Adicionados recentemente"
+                    : kind}
+              <span>{visible.length}</span>
+            </h2>
+            <div className="shelf-line" />
+            <label>
+              <span className="sr-only">Ordenar arquivos</span>
+              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+                <option value="recent">Mais recentes</option>
+                <option value="name">Nome A–Z</option>
+                <option value="size">Maior tamanho</option>
+              </select>
+            </label>
+            <div className="view-toggle">
+              <button
+                aria-label="Visualização em capas"
+                aria-pressed={view === "grid"}
+                className={view === "grid" ? "active" : ""}
+                onClick={() => setView("grid")}
+              >
+                ▦
+              </button>
+              <button
+                aria-label="Visualização em lista"
+                aria-pressed={view === "list"}
+                className={view === "list" ? "active" : ""}
+                onClick={() => setView("list")}
+              >
+                ☰
+              </button>
+            </div>
+          </div>
+          <div className="filter-row" role="group" aria-label="Categorias">
+            {["Todos", ...kinds].map((k) => (
+              <button
+                key={k}
+                aria-pressed={kind === k}
+                className={kind === k ? "active" : ""}
+                onClick={() => setKind(k)}
+              >
+                {k}
+              </button>
+            ))}
+            <button
+              className={onlyFavorites ? "active" : ""}
+              aria-pressed={onlyFavorites}
+              onClick={() => setOnlyFavorites(!onlyFavorites)}
+            >
+              ☆ Favoritos
+            </button>
+          </div>
+          <div className={`file-collection ${view}`}>
+            {visible.map((f) => (
+              <article className="file-card" key={f.id}>
+                <button
+                  className="cover-button"
+                  onClick={() => setDetail(f.id)}
+                  aria-label={`Ver detalhes de ${f.name}`}
+                >
+                  <Cover id={f.id} name={f.name} />
+                  <span className="cover-hover">EXPLORAR ↗</span>
+                </button>
+                <div className="card-info">
+                  <button
+                    className="file-title"
+                    onClick={() => setDetail(f.id)}
+                  >
+                    {f.name}
+                  </button>
+                  <span>
+                    {f.kind} <i>·</i> {mb(f.size)}
+                  </span>
+                </div>
+                <button
+                  className={`favorite ${favorites.includes(f.id) ? "saved" : ""}`}
+                  aria-label={`Favoritar ${f.name}`}
+                  aria-pressed={favorites.includes(f.id)}
+                  onClick={() => favorite(f.id)}
+                >
+                  {favorites.includes(f.id) ? "★" : "☆"}
+                </button>
+              </article>
+            ))}
+          </div>
+          {!visible.length && (
+            <div className="empty" role="status">
+              <span>⌕</span>
+              <h3>
+                {onlyFavorites && !favorites.length
+                  ? "Sua prateleira de favoritos está vazia"
+                  : !files.length
+                    ? "Sua biblioteca está vazia"
+                    : "Nenhum arquivo encontrado"}
+              </h3>
+              <p>
+                {onlyFavorites && !favorites.length
+                  ? "Use a estrela nas capas para reunir seus preferidos."
+                  : !files.length
+                    ? "Salve um arquivo pelo Telegram e clique em Atualizar."
+                    : "Tente outro nome ou remova os filtros."}
+              </p>
+              <button className="primary" onClick={reset}>
+                Mostrar todos os arquivos
+              </button>
+            </div>
+          )}
+          <div className="collection-footer">
+            <span aria-live="polite">
+              {visible.length} de {files.length} arquivos
+            </span>
+            <span>Seu conteúdo. Do seu jeito.</span>
+          </div>
+        </section>
+        <div className="demo-note">
+          <span>ⓘ</span>
+          <p>
+            <strong>Sua biblioteca local.</strong> Arquivos salvos pelo bot. As
+            capas são geradas a partir dos nomes. Favoritos duram até recarregar
+            a página.
+          </p>
+        </div>
+      </main>
+      <footer className="statusbar">
+        <span>
+          <i className="status-dot" /> MEDIA SAVER <b> / </b> Biblioteca local
+        </span>
+        <span>BIBLIOTECA CONECTADA À API LOCAL</span>
+      </footer>
+    </div>
+  );
+}
