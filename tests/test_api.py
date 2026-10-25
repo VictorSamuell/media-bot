@@ -104,3 +104,20 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
                         self.assertIn('novo%20nome.txt',download.headers['content-disposition'])
             finally:
                 app.dependency_overrides.clear()
+
+class CorsTests(unittest.IsolatedAsyncioTestCase):
+    async def test_only_configured_origin_can_preflight(self):
+        from unittest.mock import patch
+        from media_bot.api import create_app
+        with patch.dict(os.environ, {'PANEL_ALLOWED_ORIGINS':'https://panel.pages.dev'}):
+            application = create_app()
+        async with AsyncClient(transport=ASGITransport(app=application), base_url='http://test') as client:
+            for origin, expected in [('https://panel.pages.dev',200),('https://other.pages.dev',400)]:
+                response = await client.options('/api/files',headers={
+                    'Origin':origin, 'Access-Control-Request-Method':'PATCH',
+                    'Access-Control-Request-Headers':'authorization,content-type'})
+                self.assertEqual(response.status_code,expected)
+                self.assertEqual(response.headers.get('access-control-allow-origin'),origin if expected==200 else None)
+        with patch.dict(os.environ, {'PANEL_ALLOWED_ORIGINS':'*'}):
+            with self.assertRaises(ValueError):
+                create_app()

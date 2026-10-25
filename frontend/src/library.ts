@@ -32,7 +32,14 @@ export function category(name: string): Kind {
   return "Outros";
 }
 export async function request(path: string, key: string, options: RequestInit = {}) {
-  const response = await fetch(path, {
+  const base = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+  if (base && new URL(base).protocol !== 'https:') {
+    throw new Error('O endereço remoto da API deve usar HTTPS.');
+  }
+  if (!base && import.meta.env.PROD) {
+    throw new Error('A conexão com a API ainda não foi configurada nesta publicação.');
+  }
+  const response = await fetch(base + path, {
     ...options,
     headers: { ...options.headers, Authorization: `Bearer ${key}` },
     cache: "no-store",

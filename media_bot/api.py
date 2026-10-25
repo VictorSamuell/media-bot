@@ -7,12 +7,26 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StrictStr
 
 from media_bot.library import Library
 
 ROOT = Path(__file__).resolve().parents[1]
-app = FastAPI(title='Media Saver API')
+def create_app():
+    load_dotenv(ROOT / '.env')
+    application = FastAPI(title='Media Saver API')
+    origins = [origin.strip().rstrip('/') for origin in
+               os.getenv('PANEL_ALLOWED_ORIGINS', '').split(',') if origin.strip()]
+    if any(not origin.startswith('https://') or '*' in origin for origin in origins):
+        raise ValueError('PANEL_ALLOWED_ORIGINS deve conter origens HTTPS explícitas, sem curingas.')
+    application.add_middleware(CORSMiddleware, allow_origins=origins,
+                               allow_methods=['GET', 'PATCH'],
+                               allow_headers=['Authorization', 'Content-Type'])
+    return application
+
+
+app = create_app()
 
 
 def library():

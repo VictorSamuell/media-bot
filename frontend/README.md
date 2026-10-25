@@ -55,3 +55,8 @@ nem o proxy do servidor de desenvolvimento.
 A integração atual permite listar, baixar e renomear arquivos. Abra os detalhes,
 clique em Renomear arquivo e salve o novo nome, incluindo a extensão. A alteração
 também aparece no bot porque ambos usam a mesma biblioteca. Excluir continua pelo bot. As capas são representações dos nomes, não miniaturas extraídas da mídia.
+
+## Publicação
+
+Veja [o guia da Cloudflare Pages](../docs/cloudflare.md). O desenvolvimento local
+continua usando o proxy do Vite; publicações usam `VITE_API_BASE_URL` com HTTPS.
