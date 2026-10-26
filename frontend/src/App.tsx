@@ -1,5 +1,5 @@
 import RenameForm from "./RenameForm";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { kinds, icons, category, request, type MediaFile } from "./library";
 import "./App.css";
 const normalize = (s: string) =>
@@ -29,14 +29,15 @@ function Cover({ id, name }: { id: string; name: string }) {
 export default function App() {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [key, setKey] = useState("");
+  const [code, setCode] = useState("");
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  async function refresh() {
+  async function refresh(session = key) {
     setLoading(true);
     setError("");
     try {
-      const response = await request("/api/files", key);
+      const response = await request("/api/files", session);
       const data = await response.json();
       setFiles(
         data.files.map(
@@ -64,6 +65,35 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+  function clearSession() {
+    setConnected(false); setFiles([]); setKey(''); setCode('');
+    setFavorites([]); setDetail(null);
+  }
+  useEffect(() => {
+    const expired = () => {clearSession(); setError('Sessão expirada. Envie /login ao bot para entrar novamente.');};
+    window.addEventListener('session-expired', expired);
+    return () => window.removeEventListener('session-expired', expired);
+  }, []);
+  async function login() {
+    setLoading(true); setError('');
+    try {
+      const response = await request('/api/auth/login', '', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code.trim()})
+      });
+      const session = await response.json();
+      setKey(session.token); setCode('');
+      await refresh(session.token);
+    } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível entrar.');}
+    finally {setLoading(false);}
+  }
+  async function logout() {
+    setLoading(true); setError('');
+    try {
+      await request('/api/auth/logout', key, {method:'POST'});
+      clearSession();
+    } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível encerrar a sessão. Tente novamente.');}
+    finally {setLoading(false);}
   }
   async function download(file: MediaFile) {
     setError("");
@@ -120,21 +150,22 @@ export default function App() {
     return (
       <main className="login-panel">
         <h1>Entre na sua biblioteca</h1>
-        <p>Use a chave local do painel. Ela é diferente do token do bot.</p>
+        <p>Envie /login na conversa privada com o bot e cole o código recebido. Ele vale por 5 minutos e só pode ser usado uma vez.</p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            void refresh();
+            void login();
           }}
         >
           <label>
-            Chave de acesso
+            Código do Telegram
             <input
               type="password"
-              autoComplete="off"
+              autoComplete="one-time-code"
+              maxLength={16}
               required
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
             />
           </label>
           <button className="primary" disabled={loading}>
@@ -261,14 +292,8 @@ export default function App() {
             {loading ? "Atualizando…" : "Atualizar"}
           </button>
           <button
-            onClick={() => {
-              setConnected(false);
-              setFiles([]);
-              setKey("");
-              setFavorites([]);
-              setDetail(null);
-              setError("");
-            }}
+            disabled={loading}
+            onClick={() => void logout()}
           >
             Sair
           </button>

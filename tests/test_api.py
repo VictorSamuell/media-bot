@@ -36,7 +36,8 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_authorization_listing_and_download(self):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
-        from media_bot.api import library
+        from media_bot.api import library, auth_store
+        from media_bot.auth import AuthStore
         from media_bot.library import Library
         with TemporaryDirectory() as folder:
             root = Path(folder)
@@ -46,11 +47,14 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
             own = store.save_local(source, 42)
             other = store.save_local(source, 99)
             app.dependency_overrides[library] = lambda: store
+            auth = AuthStore(root)
+            app.dependency_overrides[auth_store] = lambda: auth
+            session, _ = auth.exchange(auth.issue(42))
             try:
                 with patch.dict(os.environ, {'PANEL_OWNER_ID':'42', 'PANEL_ACCESS_KEY':'x'*32}):
                     async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
                         self.assertEqual((await client.get('/api/files')).status_code, 401)
-                        headers = {'Authorization':'Bearer ' + 'x'*32}
+                        headers = {'Authorization':'Bearer ' + session}
                         response = await client.get('/api/files', headers=headers)
                         self.assertEqual([f['id'] for f in response.json()['files']], [own])
                         response = await client.get(f'/api/files/{own}/download', headers=headers)
@@ -62,14 +66,15 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual((await client.get('/api/files/not-a-uuid/download', headers=headers)).status_code,404)
                 with patch.dict(os.environ, {'PANEL_OWNER_ID':'', 'PANEL_ACCESS_KEY':''}):
                     async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
-                        self.assertEqual((await client.get('/api/files')).status_code,503)
+                        self.assertEqual((await client.get('/api/files')).status_code,401)
             finally:
                 app.dependency_overrides.clear()
 
     async def test_rename_persists_validates_and_isolates_owner(self):
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
-        from media_bot.api import library
+        from media_bot.api import library, auth_store
+        from media_bot.auth import AuthStore
         from media_bot.library import Library
         with TemporaryDirectory() as folder:
             root = Path(folder)
@@ -79,10 +84,13 @@ class LibraryApiTests(unittest.IsolatedAsyncioTestCase):
             own = store.save_local(source, 42)
             other = store.save_local(source, 99)
             app.dependency_overrides[library] = lambda: store
+            auth = AuthStore(root)
+            app.dependency_overrides[auth_store] = lambda: auth
+            session, _ = auth.exchange(auth.issue(42))
             try:
                 with patch.dict(os.environ, {'PANEL_OWNER_ID':'42', 'PANEL_ACCESS_KEY':'x'*32}):
                     async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
-                        headers = {'Authorization':'Bearer ' + 'x'*32}
+                        headers = {'Authorization':'Bearer ' + session}
                         url = f'/api/files/{own}'
                         self.assertEqual((await client.patch(url, json={'name':'blocked.txt'})).status_code,401)
                         for name in ('', '   ', '../escape.txt', 'a/b.txt', 'a'*201):

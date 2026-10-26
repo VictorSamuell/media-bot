@@ -20,6 +20,7 @@ from yt_dlp.utils import DownloadError
 
 from .config import Settings
 from .library import Library
+from .auth import AuthStore
 from .downloader import MAX_UPLOAD_BYTES, download_async, validate_url
 
 logger = logging.getLogger(__name__)
@@ -51,6 +52,7 @@ class MediaBot:
                 'Use /audio LINK para MP3 ou envie /audio e depois o link.\n'
                 'Use /video para voltar ao vídeo. Um arquivo por vez, abaixo de 50 MB.\n'
                 'Envie um documento em conversa privada para guardar na biblioteca.\n'
+                'Use /login para entrar no painel com um código temporário.\n'
                 'Use /arquivos para listar seus últimos documentos.\n'
                 'Use /buscar palavra para pesquisar e /baixar ID para receber um arquivo salvo.\n'
                 '/renomear ID novo nome: altera o nome do arquivo.\n'
@@ -58,6 +60,15 @@ class MediaBot:
                 'Ao enviar arquivo ou link, escolha um nome ou use /original.\n'
                 '/espaco: mostra a quantidade e o tamanho dos seus arquivos.\n'
                 f'Seu ID: {update.effective_user.id}')
+
+    async def login(self, update, context):
+        if not await self.private_library(update):
+            return
+        code = await asyncio.to_thread(AuthStore(self.library.root).issue, update.effective_user.id)
+        await update.message.reply_text(
+            f'Seu código para entrar no painel: {code}\n'
+            'Válido por 5 minutos e apenas uma vez. Não compartilhe. '
+            'Um novo /login substitui o código anterior.')
 
     async def document(self, update, context):
         if not await self.authorized(update):
@@ -393,6 +404,7 @@ def build_application(settings):
     # Processamento sequencial limita uso de disco/CPU e preserva /audio -> link.
     app = Application.builder().token(settings.token).concurrent_updates(False).build()
     app.add_handler(CommandHandler(['start', 'help'], handlers.start))
+    app.add_handler(CommandHandler('login', handlers.login))
     app.add_handler(CommandHandler('audio', handlers.audio))
     app.add_handler(CommandHandler('video', handlers.video))
     app.add_handler(CommandHandler('arquivos', handlers.files))

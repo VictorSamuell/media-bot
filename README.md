@@ -33,7 +33,7 @@ Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling 
 
 A interface em `frontend/` usa React, TypeScript e Vite. Ela permite explorar
 arquivos reais com busca sem acentos, filtros, ordenação, download e favoritos temporários.
-Configure PANEL_OWNER_ID e PANEL_ACCESS_KEY no .env e inicie a API na porta 8000.
+Inicie a API na porta 8000 e envie /login ao bot para gerar seu código de entrada.
 O passo a passo está em [frontend/README.md](frontend/README.md).
 
 Com Node.js 24 instalado:
@@ -141,3 +141,14 @@ Use `/original` para manter o nome e `/cancelar` para desistir antes do processa
 Enquanto aguarda um nome, outro envio não substitui o pedido pendente.
 Pedidos ficam na memória: se reiniciar o bot, envie o documento ou link novamente.
 O comando `/baixar ID` continua reenviando o arquivo com o nome já salvo na biblioteca.
+
+Login web: `/login` no privado gera um código de uso único válido por 5 minutos.
+Sessões duram 12 horas; o botão Sair revoga a sessão. As antigas variáveis
+PANEL_OWNER_ID e PANEL_ACCESS_KEY não concedem mais acesso.
+
+## Iniciar tudo localmente no Windows
+
+Abra `iniciar.cmd` para iniciar bot e API e abrir o painel no navegador.
+Use `parar.cmd` para encerrar. Não precisa de túnel nem servidor Vite.
+Antes do primeiro uso, gere a interface com `preparar-painel.cmd`.
+Veja [configuração e uso local](docs/uso-local.md).

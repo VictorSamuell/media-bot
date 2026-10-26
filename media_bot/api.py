@@ -1,7 +1,6 @@
 """API do painel local; a chave identifica um único proprietário configurado."""
 import os
 import re
-import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -11,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, StrictStr
 
 from media_bot.library import Library
+from media_bot.auth import AuthStore
 
 ROOT = Path(__file__).resolve().parents[1]
 def create_app():
@@ -21,7 +21,7 @@ def create_app():
     if any(not origin.startswith('https://') or '*' in origin for origin in origins):
         raise ValueError('PANEL_ALLOWED_ORIGINS deve conter origens HTTPS explícitas, sem curingas.')
     application.add_middleware(CORSMiddleware, allow_origins=origins,
-                               allow_methods=['GET', 'PATCH'],
+                               allow_methods=['GET', 'PATCH', 'POST'],
                                allow_headers=['Authorization', 'Content-Type'])
     return application
 
@@ -33,15 +33,37 @@ def library():
     return Library(ROOT / 'data')
 
 
-def owner(authorization: str = Header(default='')):
-    load_dotenv(ROOT / '.env')
-    key = os.getenv('PANEL_ACCESS_KEY', '').strip()
-    owner_id = os.getenv('PANEL_OWNER_ID', '').strip()
-    if len(key) < 32 or not owner_id.isdecimal() or int(owner_id) <= 0:
-        raise HTTPException(503, 'Configure PANEL_OWNER_ID e PANEL_ACCESS_KEY no .env.')
-    if not secrets.compare_digest(authorization.encode(), ('Bearer ' + key).encode()):
-        raise HTTPException(401, 'Chave de acesso inválida.')
-    return int(owner_id)
+def auth_store():
+    return AuthStore(ROOT / 'data')
+
+
+def owner(authorization: str = Header(default=''), auth: AuthStore = Depends(auth_store)):
+    token = authorization.removeprefix('Bearer ')
+    owner_id = auth.owner(token) if authorization.startswith('Bearer ') else None
+    if owner_id is None:
+        raise HTTPException(401, 'Sessão inválida ou expirada. Gere outro código com /login no bot.')
+    return owner_id
+
+
+class LoginCode(BaseModel):
+    code: StrictStr
+
+
+@app.post('/api/auth/login')
+def login(body: LoginCode, auth: AuthStore = Depends(auth_store)):
+    token, error = auth.exchange(body.code[:200])
+    if error == 'limited':
+        raise HTTPException(429, 'Muitas tentativas. Aguarde um minuto.', headers={'Retry-After':'60'})
+    if error:
+        raise HTTPException(401, 'Código inválido, usado ou expirado. Envie /login ao bot.')
+    from fastapi.responses import JSONResponse
+    return JSONResponse({'token': token, 'expires_in':43200}, headers={'Cache-Control':'no-store'})
+
+
+@app.post('/api/auth/logout')
+def logout(authorization: str = Header(default=''), auth: AuthStore = Depends(auth_store)):
+    auth.revoke(authorization.removeprefix('Bearer '))
+    return {'ok': True}
 
 
 @app.get('/health')
@@ -88,3 +110,19 @@ def rename_file(file_id: str, body: RenameFile, owner_id: int = Depends(owner),
     if not changed:
         raise HTTPException(404, 'Arquivo não encontrado.')
     return {'id': file_id, 'name': body.name.strip()}
+
+
+# Montado depois das rotas da API: caminhos /api desconhecidos continuam 404.
+from fastapi.staticfiles import StaticFiles
+
+
+def mount_frontend(application, directory):
+    @application.api_route('/api/{path:path}', methods=['GET', 'POST', 'PATCH', 'DELETE'])
+    def unknown_api(path: str):
+        raise HTTPException(404, 'Endpoint não encontrado.')
+
+    if directory.is_dir():
+        application.mount('/', StaticFiles(directory=directory, html=True), name='frontend')
+
+
+mount_frontend(app, ROOT / 'frontend' / 'dist')

@@ -8,3 +8,5 @@ data/
 # Guias locais de uso e aprendizado
 LEIA-ME.md
 PRIMEIRA-ETAPA.md
+.runtime/
+

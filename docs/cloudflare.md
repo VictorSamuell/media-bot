@@ -27,7 +27,7 @@ No `.env` da raiz, configure a origem exata retornada pelo Pages:
 PANEL_ALLOWED_ORIGINS=https://seu-painel.pages.dev
 ```
 
-Reinicie a API. A chave do painel permanece obrigatória. CORS só controla quais
+Reinicie a API. O login por código do Telegram permanece obrigatório. CORS só controla quais
 origens o navegador aceita; não substitui autenticação. URLs de previews não são
 liberadas automaticamente.
 
@@ -36,7 +36,7 @@ liberadas automaticamente.
 Um Cloudflare Tunnel pode encaminhar uma URL HTTPS à API em `127.0.0.1:8000`.
 Um Quick Tunnel fornece endereço temporário e serve para testes; não é uma solução
 permanente. Escolha a configuração do túnel antes de publicar o painel funcional.
-Não compartilhe a chave do painel e não utilize uma chave que já foi exposta.
+Não compartilhe códigos de login. Bot e API precisam compartilhar a pasta data/.
 
 Depois de conectar: testar entrada, lista, download e renomeação; uma origem
 não autorizada deve falhar no preflight. O bot continua iniciado separadamente.
