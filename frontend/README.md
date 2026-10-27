@@ -48,9 +48,19 @@ nem o proxy do servidor de desenvolvimento.
 
 A integração atual permite listar, baixar e renomear arquivos. Abra os detalhes,
 clique em Renomear arquivo e salve o novo nome, incluindo a extensão. A alteração
-também aparece no bot porque ambos usam a mesma biblioteca. Excluir continua pelo bot. As capas são representações dos nomes, não miniaturas extraídas da mídia.
+também aparece no bot porque ambos usam a mesma biblioteca. Para excluir no painel, abra os detalhes e clique em Excluir arquivo. Uma confirmação mostra o nome e avisa que a remoção é definitiva; Cancelar mantém o arquivo. As capas são representações dos nomes, não miniaturas extraídas da mídia.
 
 ## Publicação
 
 Veja [o guia da Cloudflare Pages](../docs/cloudflare.md). O desenvolvimento local
 continua usando o proxy do Vite; publicações usam `VITE_API_BASE_URL` com HTTPS.
+
+## Paginação da biblioteca
+
+O painel carrega 24 arquivos por página. Busca sem acentos, tipo, favoritos e
+ordenação são aplicados na API antes da paginação. Alterar um filtro volta à
+primeira página. Os totais de armazenamento continuam representando toda a
+biblioteca do usuário. Favoritos seguem temporários, com até 500 seleções.
+A lista lateral mostra arquivos da página atual; use FAVORITOS para navegar
+por todas as seleções. A API aceita page_size entre 1 e 100 e ajusta páginas
+fora do intervalo para a última disponível.

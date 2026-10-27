@@ -1,13 +1,9 @@
+import DeleteFile from "./DeleteFile";
 import { readSession, saveSession, removeSession, SESSION_STORAGE_KEY } from "./session";
 import RenameForm from "./RenameForm";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { kinds, icons, category, request, type MediaFile } from "./library";
 import "./App.css";
-const normalize = (s: string) =>
-  s
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
 const mb = (n: number) =>
   `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} MB`;
 const art = (id: string) => (parseInt(id.slice(0, 6), 16) % 8) + 1;
@@ -32,15 +28,27 @@ export default function App() {
   const [key, setKey] = useState("");
   const [expiresAt, setExpiresAt] = useState(0);
   const [code, setCode] = useState("");
+  const [restoring, setRestoring] = useState(true);
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [matched, setMatched] = useState(0);
+  const [usage, setUsage] = useState({count:0, bytes:0});
+  const requestNumber = useRef(0);
   async function refresh(session = key) {
+    const number = ++requestNumber.current;
     setLoading(true);
     setError("");
     try {
-      const response = await request("/api/files", session);
+      const params = new URLSearchParams({page:String(page),page_size:'24',q:query,kind,sort});
+      if (onlyFavorites) params.set('ids', favorites.join(','));
+      const response = await request('/api/files?' + params, session);
       const data = await response.json();
+      if (number !== requestNumber.current) return;
+      setPage(data.page); setPages(data.pages); setMatched(data.total); setUsage(data.usage);
+      setDetail(null);
       setFiles(
         data.files.map(
           (f: {
@@ -61,15 +69,17 @@ export default function App() {
       setConnected(true);
       setFeature(0);
     } catch (e) {
+      if (number !== requestNumber.current) return;
       setError(
         e instanceof Error ? e.message : "Não foi possível conectar à API.",
       );
     } finally {
-      setLoading(false);
+      if (number === requestNumber.current) {setLoading(false); setRestoring(false);}
     }
   }
   function clearSession() {
-    removeSession(); setExpiresAt(0);
+    ++requestNumber.current;
+    removeSession(); setExpiresAt(0); setRestoring(false);
     setConnected(false); setFiles([]); setKey(''); setCode('');
     setFavorites([]); setDetail(null);
   }
@@ -83,6 +93,8 @@ export default function App() {
     if (saved) {
       setKey(saved.token); setExpiresAt(saved.expiresAt);
       void refresh(saved.token);
+    } else {
+      setRestoring(false);
     }
     const syncLogout = (event: StorageEvent) => {
       if (event.key === SESSION_STORAGE_KEY && event.newValue === null) clearSession();
@@ -146,35 +158,44 @@ export default function App() {
   const [detail, setDetail] = useState<string | null>(null);
   const [view, setView] = useState<"grid" | "list">("grid");
   const [feature, setFeature] = useState(0);
-  const visible = files
-    .filter(
-      (f) =>
-        (kind === "Todos" || f.kind === kind) &&
-        normalize(f.name).includes(normalize(query.trim())) &&
-        (!onlyFavorites || favorites.includes(f.id)),
-    )
-    .sort((a, b) =>
-      sort === "name"
-        ? a.name.localeCompare(b.name, "pt-BR")
-        : sort === "size"
-          ? b.size - a.size
-          : b.date.localeCompare(a.date),
-    );
+  const visible = files;
+  useEffect(() => {
+    if (!connected || !key) return;
+    // Debounce busca e ignore respostas de uma seleção anterior.
+    ++requestNumber.current;
+    setLoading(true);
+    const timer = setTimeout(() => void refresh(), 250);
+    return () => {clearTimeout(timer); ++requestNumber.current;};
+  }, [page, query, kind, sort, onlyFavorites, favorites]);
   const selected = files.find((f) => f.id === detail);
   const featured = files[feature];
   const featureCount = Math.min(files.length, 4);
-  const total = files.reduce((s, f) => s + f.size, 0);
+  const total = usage.bytes / 1_000_000;
   function reset() {
+    setPage(1);
     setQuery("");
     setKind("Todos");
     setOnlyFavorites(false);
     setDetail(null);
   }
   function favorite(id: string) {
+    if (!favorites.includes(id) && favorites.length >= 500) {setError("Limite de 500 favoritos nesta sessão.");return;}
+    setPage(1);
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
     );
   }
+  if (!connected && (restoring || key)) return (
+    <main className="login-panel">
+      <h1>{restoring || loading ? 'Restaurando seu acesso…' : 'Não foi possível carregar a biblioteca'}</h1>
+      <p>Sua sessão salva será verificada pela API. Não é necessário pedir outro código enquanto ela estiver válida.</p>
+      {error && <p role="alert">{error}</p>}
+      {!loading && !restoring && <>
+        <button className="primary" onClick={() => void refresh()}>Tentar novamente</button>
+        <button className="primary" onClick={() => {clearSession();setError('');}}>Usar outro código</button>
+      </>}
+    </main>
+  );
   if (!connected)
     return (
       <main className="login-panel">
@@ -218,7 +239,7 @@ export default function App() {
             className={onlyFavorites ? "active" : ""}
             onClick={() => {
               reset();
-              setOnlyFavorites(true);
+              setOnlyFavorites(true); setPage(1);
             }}
           >
             FAVORITOS
@@ -239,7 +260,7 @@ export default function App() {
         </button>
         <label className="sidebar-select">
           <span className="sr-only">Filtrar por tipo</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
+          <select value={kind} onChange={(e) => (setPage(1), setKind(e.target.value))}>
             <option value="Todos">Todos os arquivos</option>
             {kinds.map((k) => (
               <option key={k}>{k}</option>
@@ -252,10 +273,10 @@ export default function App() {
             aria-label="Buscar arquivos"
             placeholder="Buscar na biblioteca"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => (setPage(1), setQuery(e.target.value))}
           />
           {query && (
-            <button onClick={() => setQuery("")} aria-label="Limpar busca">
+            <button onClick={() => {setPage(1);setQuery("");}} aria-label="Limpar busca">
               ×
             </button>
           )}
@@ -263,7 +284,7 @@ export default function App() {
         <button
           className={`section-label ${onlyFavorites ? "selected" : ""}`}
           onClick={() => {
-            setOnlyFavorites(!onlyFavorites);
+            (setPage(1), setOnlyFavorites(!onlyFavorites));
             setDetail(null);
           }}
         >
@@ -271,7 +292,7 @@ export default function App() {
         </button>
         {favorites.length === 0 ? (
           <p className="favorite-hint">
-            Marque uma estrela para guardar seus preferidos aqui.
+            Marque uma estrela para guardar seus preferidos.
           </p>
         ) : (
           files
@@ -289,8 +310,9 @@ export default function App() {
               </button>
             ))
         )}
+        {favorites.length > 0 && <p className="favorite-hint">A lista acima mostra favoritos desta página. Clique em FAVORITOS para ver todos.</p>}
         <div className="section-label">
-          SUA COLEÇÃO <span>({visible.length})</span>
+          NESTA PÁGINA <span>({visible.length})</span>
         </div>
         <div className="side-files">
           {visible.map((f) => (
@@ -312,7 +334,7 @@ export default function App() {
           <div className="storage-track">
             <i />
           </div>
-          <small>{files.length} arquivos · biblioteca local</small>
+          <small>{usage.count} arquivos · biblioteca local</small>
         </div>
       </aside>
       <main id="main">
@@ -342,7 +364,7 @@ export default function App() {
             <p>Vídeos, ideias e inspirações. Tudo o que vale guardar.</p>
           </div>
           <span className="collection-count">
-            {files.length}{" "}
+            {usage.count}{" "}
             <small>
               ARQUIVOS
               <br />
@@ -374,6 +396,13 @@ export default function App() {
               </button>
               <RenameForm key={selected.id} file={selected} accessKey={key} onRenamed={(id, name) => {
                 setFiles(previous => previous.map(file => file.id === id ? {...file, name, kind: category(name)} : file));
+                void refresh();
+              }} />
+              <DeleteFile key={`delete-${selected.id}`} file={selected} accessKey={key} onDeleted={(id) => {
+                setDetail(null);
+                setFiles(previous => previous.filter(file => file.id !== id));
+                setFavorites(previous => previous.filter(value => value !== id));
+                void refresh();
               }} />
               <p className="disclaimer">
                 Arquivo disponível na biblioteca do bot.
@@ -442,12 +471,12 @@ export default function App() {
                   : kind === "Todos"
                     ? "Adicionados recentemente"
                     : kind}
-              <span>{visible.length}</span>
+              <span>{matched}</span>
             </h2>
             <div className="shelf-line" />
             <label>
               <span className="sr-only">Ordenar arquivos</span>
-              <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              <select value={sort} onChange={(e) => (setPage(1), setSort(e.target.value))}>
                 <option value="recent">Mais recentes</option>
                 <option value="name">Nome A–Z</option>
                 <option value="size">Maior tamanho</option>
@@ -478,7 +507,7 @@ export default function App() {
                 key={k}
                 aria-pressed={kind === k}
                 className={kind === k ? "active" : ""}
-                onClick={() => setKind(k)}
+                onClick={() => (setPage(1), setKind(k))}
               >
                 {k}
               </button>
@@ -486,7 +515,7 @@ export default function App() {
             <button
               className={onlyFavorites ? "active" : ""}
               aria-pressed={onlyFavorites}
-              onClick={() => setOnlyFavorites(!onlyFavorites)}
+              onClick={() => (setPage(1), setOnlyFavorites(!onlyFavorites))}
             >
               ☆ Favoritos
             </button>
@@ -530,14 +559,14 @@ export default function App() {
               <h3>
                 {onlyFavorites && !favorites.length
                   ? "Sua prateleira de favoritos está vazia"
-                  : !files.length
+                  : !usage.count
                     ? "Sua biblioteca está vazia"
                     : "Nenhum arquivo encontrado"}
               </h3>
               <p>
                 {onlyFavorites && !favorites.length
                   ? "Use a estrela nas capas para reunir seus preferidos."
-                  : !files.length
+                  : !usage.count
                     ? "Salve um arquivo pelo Telegram e clique em Atualizar."
                     : "Tente outro nome ou remova os filtros."}
               </p>
@@ -546,9 +575,14 @@ export default function App() {
               </button>
             </div>
           )}
+          <nav className="pagination" aria-label="Páginas da biblioteca">
+            <button className="primary" disabled={loading || page <= 1} onClick={()=>setPage(page-1)}>← Anterior</button>
+            <span role="status">{loading ? 'Carregando…' : `Página ${page} de ${pages}`}</span>
+            <button className="primary" disabled={loading || page >= pages} onClick={()=>setPage(page+1)}>Próxima →</button>
+          </nav>
           <div className="collection-footer">
             <span aria-live="polite">
-              {visible.length} de {files.length} arquivos
+              {visible.length} de {matched} resultados · {usage.count} arquivos na biblioteca
             </span>
             <span>Seu conteúdo. Do seu jeito.</span>
           </div>

@@ -1270,3 +1270,12 @@ button:disabled {
   .rename-panel > button,
   .rename-actions > button { transition: none; }
 }
+
+.pagination {display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap;margin:28px 0;color:#b8d8ed;}
+.delete-panel { margin-top:16px; }
+.danger { padding:11px 16px; border:1px solid #ab5e66; border-radius:3px; background:#482b38; color:#ffd3d7; font-weight:600; }
+.danger:hover:not(:disabled) { background:#6c3544; }
+.delete-panel dialog { max-width:520px; width:calc(100% - 32px); padding:28px; background:#1c2c3c; color:#e3e8ef; border:1px solid #52718a; border-radius:8px; box-shadow:0 20px 70px #0008; }
+.delete-panel dialog::backdrop { background:#070e18c9; }
+.delete-panel dialog p { margin-top:16px; line-height:1.6; }
+.delete-name { overflow-wrap:anywhere; color:#fff; font-weight:600; }

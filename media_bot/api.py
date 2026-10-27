@@ -4,12 +4,12 @@ import re
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, StrictStr
+from pydantic import BaseModel, StrictStr, StrictBool
 
-from media_bot.library import Library
+from media_bot.library import Library, normalize_search
 from media_bot.auth import AuthStore
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +21,7 @@ def create_app():
     if any(not origin.startswith('https://') or '*' in origin for origin in origins):
         raise ValueError('PANEL_ALLOWED_ORIGINS deve conter origens HTTPS explícitas, sem curingas.')
     application.add_middleware(CORSMiddleware, allow_origins=origins,
-                               allow_methods=['GET', 'PATCH', 'POST'],
+                               allow_methods=['GET', 'PATCH', 'POST', 'DELETE'],
                                allow_headers=['Authorization', 'Content-Type'])
     return application
 
@@ -71,13 +71,54 @@ async def health():
     return {'status': 'ok'}
 
 
+def file_kind(name):
+    extension = name.rsplit('.', 1)[-1].lower() if '.' in name else ''
+    for kind, extensions in {
+        'Vídeos': ('mp4','mkv','webm','mov','avi'),
+        'Áudios': ('mp3','wav','ogg','m4a','flac'),
+        'Imagens': ('jpg','jpeg','png','webp','gif','svg'),
+        'Documentos': ('pdf','txt','doc','docx','xlsx','csv','pptx','md'),
+    }.items():
+        if extension in extensions:
+            return kind
+    return 'Outros'
+
+
 @app.get('/api/files')
-def files(owner_id: int = Depends(owner), store: Library = Depends(library)):
+def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
+          q: str = Query('', max_length=200), kind: str = Query('Todos', pattern='^(Todos|Vídeos|Áudios|Imagens|Documentos|Outros)$'),
+          sort: str = Query('recent', pattern='^(recent|name|size)$'),
+          ids: str | None = Query(None, max_length=17000),
+          owner_id: int = Depends(owner), store: Library = Depends(library)):
     db = store.connect()
     try:
-        rows = db.execute('SELECT id, name, size, created_at FROM files WHERE owner_id = ? '
-                          'ORDER BY created_at DESC, rowid DESC', (owner_id,)).fetchall()
-        return {'files': [dict(row) for row in rows], 'owner_id': str(owner_id)}
+        db.create_function('normalized', 1, normalize_search, deterministic=True)
+        db.create_function('file_kind', 1, file_kind, deterministic=True)
+        where = 'owner_id = ?'
+        params = [owner_id]
+        if q.strip():
+            where += ' AND instr(normalized(name), ?) > 0'
+            params.append(normalize_search(q.strip()))
+        if kind != 'Todos':
+            where += ' AND file_kind(name) = ?'
+            params.append(kind)
+        if ids is not None:
+            identifiers = ids.split(',') if ids else []
+            if len(identifiers) > 500 or any(not re.fullmatch(r'[0-9a-f]{32}', value) for value in identifiers):
+                raise HTTPException(422, 'Lista de favoritos inválida (máximo 500).')
+            where += ' AND id IN (' + ','.join('?' for _ in identifiers) + ')'
+            params.extend(identifiers)
+        db.execute('BEGIN')
+        usage = dict(db.execute('SELECT COUNT(*) AS count, COALESCE(SUM(size),0) AS bytes FROM files WHERE owner_id = ?', (owner_id,)).fetchone())
+        total = db.execute('SELECT COUNT(*) FROM files WHERE ' + where, params).fetchone()[0]
+        pages = max(1, (total + page_size - 1) // page_size)
+        page = min(page, pages)
+        order = {'recent':'created_at DESC, rowid DESC', 'name':'normalized(name), id', 'size':'size DESC, id'}[sort]
+        rows = db.execute('SELECT id, name, size, created_at FROM files WHERE ' + where +
+                          ' ORDER BY ' + order + ' LIMIT ? OFFSET ?',
+                          [*params, page_size, (page - 1) * page_size]).fetchall()
+        return {'files':[dict(row) for row in rows], 'owner_id':str(owner_id),
+                'page':page, 'pages':pages, 'total':total, 'usage':usage}
     finally:
         db.close()
 
@@ -110,6 +151,24 @@ def rename_file(file_id: str, body: RenameFile, owner_id: int = Depends(owner),
     if not changed:
         raise HTTPException(404, 'Arquivo não encontrado.')
     return {'id': file_id, 'name': body.name.strip()}
+
+
+class DeleteFile(BaseModel):
+    confirmed: StrictBool = False
+
+
+@app.delete('/api/files/{file_id}')
+def delete_file(file_id: str, body: DeleteFile, owner_id: int = Depends(owner),
+                store: Library = Depends(library)):
+    if not body.confirmed:
+        raise HTTPException(400, 'Confirme a exclusão antes de continuar.')
+    try:
+        deleted = store.delete(owner_id, file_id)
+    except OSError:
+        raise HTTPException(503, 'Não foi possível apagar o arquivo. Tente novamente.') from None
+    if not deleted:
+        raise HTTPException(404, 'Arquivo não encontrado.')
+    return {'deleted': file_id}
 
 
 # Montado depois das rotas da API: caminhos /api desconhecidos continuam 404.
