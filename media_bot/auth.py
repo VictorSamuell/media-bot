@@ -52,7 +52,7 @@ class AuthStore:
                 return None, 'invalid'
             db.execute('DELETE FROM codes WHERE owner = ?', row)
             token = secrets.token_urlsafe(32)
-            db.execute('INSERT INTO sessions VALUES (?, ?, ?)', (self.digest(token), row[0], now + 43200))
+            db.execute('INSERT INTO sessions VALUES (?, ?, ?)', (self.digest(token), row[0], now + 7200))
             return token, None
 
     def owner(self, token):

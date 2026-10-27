@@ -143,7 +143,7 @@ Pedidos ficam na memória: se reiniciar o bot, envie o documento ou link novamen
 O comando `/baixar ID` continua reenviando o arquivo com o nome já salvo na biblioteca.
 
 Login web: `/login` no privado gera um código de uso único válido por 5 minutos.
-Sessões duram 12 horas; o botão Sair revoga a sessão. As antigas variáveis
+Sessões duram 2 horas; o botão Sair revoga a sessão. As antigas variáveis
 PANEL_OWNER_ID e PANEL_ACCESS_KEY não concedem mais acesso.
 
 ## Iniciar tudo localmente no Windows

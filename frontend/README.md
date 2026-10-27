@@ -8,8 +8,8 @@ Favoritos são temporários e duram até sair ou recarregar a página.
 
 Envie `/login` ao bot em conversa privada. Cole no painel o código recebido.
 O código vale 5 minutos, só funciona uma vez e um novo pedido invalida o anterior.
-A sessão vale 12 horas; Sair a revoga no servidor. A sessão fica apenas na memória
- da página: recarregar exige novo código. Não há chave manual nem ID digitado.
+A sessão vale 2 horas; Sair a revoga no servidor. A sessão fica salva neste navegador e é restaurada ao recarregar ou reabrir o painel,
+sem renovar o prazo. Use Sair em computadores compartilhados. Não há chave manual nem ID digitado.
 
 Bot e API precisam usar a mesma pasta `data/`. O arquivo `auth.sqlite3` contém
 apenas hashes dos códigos e das sessões, com proprietário e prazo de validade.

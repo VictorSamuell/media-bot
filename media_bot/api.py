@@ -57,7 +57,7 @@ def login(body: LoginCode, auth: AuthStore = Depends(auth_store)):
     if error:
         raise HTTPException(401, 'Código inválido, usado ou expirado. Envie /login ao bot.')
     from fastapi.responses import JSONResponse
-    return JSONResponse({'token': token, 'expires_in':43200}, headers={'Cache-Control':'no-store'})
+    return JSONResponse({'token': token, 'expires_in':7200}, headers={'Cache-Control':'no-store'})
 
 
 @app.post('/api/auth/logout')

@@ -26,7 +26,9 @@ class AuthTests(unittest.TestCase):
                 expiring = store.issue(99)
             with patch('media_bot.auth.time.time', return_value=1301):
                 self.assertEqual(store.exchange(expiring),(None,'invalid'))
-            with patch('media_bot.auth.time.time', return_value=44201):
+            with patch('media_bot.auth.time.time', return_value=8199):
+                self.assertEqual(store.owner(token),42)
+            with patch('media_bot.auth.time.time', return_value=8200):
                 self.assertIsNone(store.owner(token))
             self.assertNotIn(token.encode(), (Path(folder)/'auth.sqlite3').read_bytes())
 
@@ -55,6 +57,7 @@ class LoginTests(unittest.IsolatedAsyncioTestCase):
                     for user in (42,99):
                         response = await client.post('/api/auth/login',json={'code':store.issue(user)})
                         self.assertEqual(response.status_code,200)
+                        self.assertEqual(response.json()['expires_in'],7200)
                         self.assertEqual(response.headers['cache-control'],'no-store')
                         token = response.json()['token']
                         self.assertEqual(store.owner(token),user)

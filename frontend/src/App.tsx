@@ -1,3 +1,4 @@
+import { readSession, saveSession, removeSession, SESSION_STORAGE_KEY } from "./session";
 import RenameForm from "./RenameForm";
 import { useEffect, useState } from "react";
 import { kinds, icons, category, request, type MediaFile } from "./library";
@@ -29,6 +30,7 @@ function Cover({ id, name }: { id: string; name: string }) {
 export default function App() {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [key, setKey] = useState("");
+  const [expiresAt, setExpiresAt] = useState(0);
   const [code, setCode] = useState("");
   const [connected, setConnected] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -67,6 +69,7 @@ export default function App() {
     }
   }
   function clearSession() {
+    removeSession(); setExpiresAt(0);
     setConnected(false); setFiles([]); setKey(''); setCode('');
     setFavorites([]); setDetail(null);
   }
@@ -75,6 +78,29 @@ export default function App() {
     window.addEventListener('session-expired', expired);
     return () => window.removeEventListener('session-expired', expired);
   }, []);
+  useEffect(() => {
+    const saved = readSession();
+    if (saved) {
+      setKey(saved.token); setExpiresAt(saved.expiresAt);
+      void refresh(saved.token);
+    }
+    const syncLogout = (event: StorageEvent) => {
+      if (event.key === SESSION_STORAGE_KEY && event.newValue === null) clearSession();
+    };
+    window.addEventListener('storage', syncLogout);
+    return () => window.removeEventListener('storage', syncLogout);
+  }, []);
+  useEffect(() => {
+    if (!expiresAt) return;
+    const check = () => {
+      if (Date.now() >= expiresAt) {
+        clearSession(); setError('Suas 2 horas de acesso terminaram. Envie /login ao bot.');
+      }
+    };
+    const timer = window.setTimeout(check, Math.max(0, expiresAt - Date.now()));
+    window.addEventListener('focus', check);
+    return () => {clearTimeout(timer); window.removeEventListener('focus', check);};
+  }, [expiresAt]);
   async function login() {
     setLoading(true); setError('');
     try {
@@ -82,6 +108,9 @@ export default function App() {
         method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code.trim()})
       });
       const session = await response.json();
+      const expires = Date.now() + session.expires_in * 1000;
+      saveSession({token:session.token, expiresAt:expires});
+      setExpiresAt(expires);
       setKey(session.token); setCode('');
       await refresh(session.token);
     } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível entrar.');}
