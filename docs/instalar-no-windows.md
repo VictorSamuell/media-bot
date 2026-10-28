@@ -13,17 +13,38 @@ A pasta correta contém `requirements.txt`, `iniciar.cmd` e `frontend`.
 
 ## 2. Instalar os programas necessários
 
-- **Python 3.12**: marque **Add Python to PATH** durante a instalação.
-- **Node.js 24**: necessário para preparar o painel.
-- **FFmpeg**: a pasta de programas deve conter `ffmpeg.exe` e `ffprobe.exe`.
+### Downloads e instalação
 
-Depois de instalar, abra um terminal novo. Confira Python e Node:
+| Programa | Link de instalação | O que escolher |
+| --- | --- | --- |
+| Python | [Downloads para Windows](https://www.python.org/downloads/windows/) | Python 3.12; marque **Add Python to PATH** no instalador. |
+| Node.js | [Download oficial](https://nodejs.org/en/download) | Selecione a versão **24**, Windows e o instalador `.msi`. |
+| FFmpeg | [Builds para Windows (Gyan)](https://www.gyan.dev/ffmpeg/builds/) | Use o comando abaixo ou baixe **ffmpeg-release-essentials.zip**. |
+
+Para instalar o FFmpeg pelo PowerShell, em qualquer pasta:
+
+```powershell
+winget install --id Gyan.FFmpeg --exact
+```
+
+Se `winget` não for reconhecido, consulte a [instalação do WinGet pela Microsoft](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
+ou use o ZIP do FFmpeg indicado acima. No caso do ZIP, extraia em uma pasta fixa
+e configure `FFMPEG_LOCATION` no `.env` com o caminho da pasta `bin` que contém
+`ffmpeg.exe` e `ffprobe.exe`, por exemplo `C:/ffmpeg/bin`.
+
+**Feche e abra novamente o terminal após instalar.** Confira os programas:
 
 ```powershell
 python --version
 node --version
-npm --version
+npm.cmd --version
+ffmpeg -version
+ffprobe -version
 ```
+
+Se `ffmpeg` e `ffprobe` mostrarem a versão, deixe `FFMPEG_LOCATION=` vazio no `.env`.
+Se instalou manualmente fora do PATH, use o caminho da pasta `bin` nessa variável;
+os comandos sem caminho completo podem continuar não sendo reconhecidos.
 
 ## 3. Preparar o Python e as configurações
 

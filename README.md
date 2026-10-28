@@ -15,6 +15,63 @@ computador. Configure a senha com `configurar-acesso.cmd`, prepare a interface
 com `preparar-painel.cmd` e abra `iniciar.cmd`. Sem token no `.env`, o bot não inicia.
 Veja o passo a passo completo em [docs/uso-local.md](docs/uso-local.md).
 
+### Downloads e instalação
+
+| Programa | Link de instalação | O que escolher |
+| --- | --- | --- |
+| Python | [Downloads para Windows](https://www.python.org/downloads/windows/) | Python 3.12; marque **Add Python to PATH** no instalador. |
+| Node.js | [Download oficial](https://nodejs.org/en/download) | Selecione a versão **24**, Windows e o instalador `.msi`. |
+| FFmpeg | [Builds para Windows (Gyan)](https://www.gyan.dev/ffmpeg/builds/) | Use o comando abaixo ou baixe **ffmpeg-release-essentials.zip**. |
+
+Para instalar o FFmpeg pelo PowerShell, em qualquer pasta:
+
+```powershell
+winget install --id Gyan.FFmpeg --exact
+```
+
+Se `winget` não for reconhecido, consulte a [instalação do WinGet pela Microsoft](https://learn.microsoft.com/en-us/windows/package-manager/winget/)
+ou use o ZIP do FFmpeg indicado acima. No caso do ZIP, extraia em uma pasta fixa
+e configure `FFMPEG_LOCATION` no `.env` com o caminho da pasta `bin` que contém
+`ffmpeg.exe` e `ffprobe.exe`, por exemplo `C:/ffmpeg/bin`.
+
+**Feche e abra novamente o terminal após instalar.** Confira os programas:
+
+```powershell
+python --version
+node --version
+npm.cmd --version
+ffmpeg -version
+ffprobe -version
+```
+
+Se `ffmpeg` e `ffprobe` mostrarem a versão, deixe `FFMPEG_LOCATION=` vazio no `.env`.
+Se instalou manualmente fora do PATH, use o caminho da pasta `bin` nessa variável;
+os comandos sem caminho completo podem continuar não sendo reconhecidos.
+
+### Preparar o projeto (primeira instalação)
+
+Abra o PowerShell na pasta extraída do projeto e execute um comando por vez:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+notepad .env
+```
+
+Não execute a cópia se já tiver um `.env` configurado. Para usar sem Telegram,
+deixe `TELEGRAM_BOT_TOKEN` vazio. Depois execute, um por vez:
+
+```powershell
+.\configurar-acesso.cmd
+.\preparar-painel.cmd
+.\iniciar.cmd
+```
+
+Na configuração de acesso, pressione Enter no campo do ID para uma biblioteca
+local nova e defina sua senha. No uso diário, basta `iniciar.cmd`; para encerrar,
+use `parar.cmd`. Não é necessário instalar Git nem entrar no GitHub para baixar o ZIP.
+
 ## Executar o bot no Windows
 
 Requisitos: Python 3.10+ e FFmpeg (incluindo ffprobe) no PATH. Para melhor suporte ao YouTube, instale também um runtime JavaScript suportado pelo yt-dlp, como Deno. FFmpeg é um programa separado.
