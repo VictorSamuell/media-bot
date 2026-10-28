@@ -8,6 +8,8 @@ em `data/` e permanece salva após reiniciar o bot.
 
 ## Usar sem Telegram
 
+**Primeira instalação em outro PC? [Siga este passo a passo para Windows, sem Telegram](docs/instalar-no-windows.md).**
+
 O painel permite entrar com senha, baixar MP3/MP4 por link e enviar arquivos do
 computador. Configure a senha com `configurar-acesso.cmd`, prepare a interface
 com `preparar-painel.cmd` e abra `iniciar.cmd`. Sem token no `.env`, o bot não inicia.

@@ -1,5 +1,7 @@
 # Usar o Media Saver no Windows
 
+Para instalar do zero, use o [passo a passo para outro PC, sem Telegram](instalar-no-windows.md).
+
 ## Primeira configuração em cada computador
 
 1. Instale Python compatível com as dependências, Node.js 24 e FFmpeg (incluindo ffprobe).
