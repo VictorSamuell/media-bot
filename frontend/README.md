@@ -70,3 +70,14 @@ fora do intervalo para a última disponível.
 Na barra lateral, escolha um formato em Todas as extensões (por exemplo MP3 ou PDF).
 A lista vem dos arquivos do usuário, considera maiúsculas e minúsculas equivalentes
 e combina com busca, categoria e favoritos antes de paginar. Página inicial limpa os filtros.
+
+## Acesso e importação sem Telegram
+
+Execute configurar-acesso.cmd na raiz para definir uma senha local. Informe seu
+ID para vincular a biblioteca existente do bot, ou Enter para uma biblioteca local nova.
+No login, escolha Entrar com senha. O código do Telegram continua como alternativa.
+A sessão dura duas horas em ambos os casos.
+
+Adicionar à biblioteca permite baixar por link (MP3/MP4) ou enviar um arquivo do PC,
+com nome opcional e limite final menor que 50 MB. Aguarde a conclusão com a página aberta.
+Não há fila persistente ou retomada nesta etapa. A importação não envia mensagens ao Telegram.

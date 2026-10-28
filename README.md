@@ -1,4 +1,4 @@
-# Downloader de Mídia — Telegram Bot
+# Media Saver — biblioteca de mídia e bot opcional
 
 Bot Python com polling, async/await, yt-dlp via módulo e FFmpeg. Recebe links do YouTube, Instagram e TikTok, guarda os downloads abaixo do limite de envio na biblioteca local e devolve MP4 ou MP3 como documento.
 
@@ -6,7 +6,14 @@ Também guarda documentos menores que 20 MB enviados na conversa privada.
 Use `/arquivos` para listar seus dez arquivos mais recentes. A biblioteca fica
 em `data/` e permanece salva após reiniciar o bot.
 
-## Executar no Windows
+## Usar sem Telegram
+
+O painel permite entrar com senha, baixar MP3/MP4 por link e enviar arquivos do
+computador. Configure a senha com `configurar-acesso.cmd`, prepare a interface
+com `preparar-painel.cmd` e abra `iniciar.cmd`. Sem token no `.env`, o bot não inicia.
+Veja o passo a passo completo em [docs/uso-local.md](docs/uso-local.md).
+
+## Executar o bot no Windows
 
 Requisitos: Python 3.10+ e FFmpeg (incluindo ffprobe) no PATH. Para melhor suporte ao YouTube, instale também um runtime JavaScript suportado pelo yt-dlp, como Deno. FFmpeg é um programa separado.
 
@@ -32,8 +39,8 @@ Deixe o terminal aberto. Para parar, pressione Ctrl+C. Esta versão usa polling 
 ## Painel local
 
 A interface em `frontend/` usa React, TypeScript e Vite. Ela permite explorar
-arquivos reais com busca sem acentos, filtros, ordenação, download e favoritos temporários.
-Inicie a API na porta 8000 e envie /login ao bot para gerar seu código de entrada.
+arquivos reais com busca sem acentos, filtros, ordenação, download e favoritos persistentes.
+Use o iniciador local e entre com senha, ou envie /login ao bot para entrar por código.
 O passo a passo está em [frontend/README.md](frontend/README.md).
 
 Com Node.js 24 instalado:
@@ -59,8 +66,8 @@ Com as dependências instaladas, execute em outro terminal na pasta do projeto:
 Abra <http://127.0.0.1:8000/health> para receber `{"status":"ok"}`.
 A documentação interativa fica em <http://127.0.0.1:8000/docs>.
 Essa rota confirma apenas que a API responde; não verifica Telegram ou banco.
-A API roda separadamente do bot, sem precisar do token, e nesta etapa não
-disponibiliza arquivos da biblioteca. Use `--reload` apenas no desenvolvimento.
+A API roda separadamente do bot, sem precisar do token, e disponibiliza somente os
+arquivos do usuário autenticado. Use `--reload` apenas no desenvolvimento.
 Para encerrar o servidor, pressione Ctrl+C.
 
 ## Comandos
