@@ -64,3 +64,9 @@ biblioteca do usuário. Favoritos são persistidos no SQLite por proprietário d
 A lista lateral mostra arquivos da página atual; use FAVORITOS para navegar
 por todas as seleções. A API aceita page_size entre 1 e 100 e ajusta páginas
 fora do intervalo para a última disponível.
+
+## Filtro por extensão
+
+Na barra lateral, escolha um formato em Todas as extensões (por exemplo MP3 ou PDF).
+A lista vem dos arquivos do usuário, considera maiúsculas e minúsculas equivalentes
+e combina com busca, categoria e favoritos antes de paginar. Página inicial limpa os filtros.

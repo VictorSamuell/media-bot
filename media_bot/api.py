@@ -88,6 +88,7 @@ def file_kind(name):
 def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
           q: str = Query('', max_length=200), kind: str = Query('Todos', pattern='^(Todos|Vídeos|Áudios|Imagens|Documentos|Outros)$'),
           sort: str = Query('recent', pattern='^(recent|name|size)$'),
+          extension: str = Query('', max_length=200),
           favorites_only: bool = False,
           ids: str | None = Query(None, max_length=17000),
           owner_id: int = Depends(owner), store: Library = Depends(library)):
@@ -95,6 +96,7 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
     try:
         db.create_function('normalized', 1, normalize_search, deterministic=True)
         db.create_function('file_kind', 1, file_kind, deterministic=True)
+        db.create_function('extension', 1, lambda name: Path(name).suffix.lower().lstrip('.'), deterministic=True)
         where = 'owner_id = ?'
         params = [owner_id]
         if q.strip():
@@ -103,6 +105,9 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
         if kind != 'Todos':
             where += ' AND file_kind(name) = ?'
             params.append(kind)
+        if extension:
+            where += ' AND extension(name) = ?'
+            params.append(extension.strip().lower().lstrip('.'))
         if favorites_only:
             where += ' AND id IN (SELECT file_id FROM favorites)'
         if ids is not None:
@@ -113,6 +118,8 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
             params.extend(identifiers)
         db.execute('BEGIN')
         usage = dict(db.execute('SELECT COUNT(*) AS count, COALESCE(SUM(size),0) AS bytes FROM files WHERE owner_id = ?', (owner_id,)).fetchone())
+        extensions = [row[0] for row in db.execute(
+            "SELECT DISTINCT extension(name) AS ext FROM files WHERE owner_id = ? AND extension(name) != '' ORDER BY ext", (owner_id,))]
         favorites = [row[0] for row in db.execute('SELECT file_id FROM favorites JOIN files ON files.id = favorites.file_id WHERE owner_id = ?', (owner_id,))]
         total = db.execute('SELECT COUNT(*) FROM files WHERE ' + where, params).fetchone()[0]
         pages = max(1, (total + page_size - 1) // page_size)
@@ -122,7 +129,7 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
                           ' ORDER BY ' + order + ' LIMIT ? OFFSET ?',
                           [*params, page_size, (page - 1) * page_size]).fetchall()
         return {'files':[dict(row) for row in rows], 'owner_id':str(owner_id),
-                'page':page, 'pages':pages, 'total':total, 'usage':usage, 'favorites':favorites}
+                'page':page, 'pages':pages, 'total':total, 'usage':usage, 'favorites':favorites, 'extensions':extensions}
     finally:
         db.close()
 

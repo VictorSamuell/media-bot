@@ -42,13 +42,14 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({page:String(page),page_size:'24',q:query,kind,sort});
+      const params = new URLSearchParams({page:String(page),page_size:'24',q:query,kind,sort,extension});
       if (onlyFavorites) params.set('favorites_only', 'true');
       const response = await request('/api/files?' + params, session);
       const data = await response.json();
       if (number !== requestNumber.current) return;
       setPage(data.page); setPages(data.pages); setMatched(data.total); setUsage(data.usage);
       setFavorites(data.favorites);
+      setExtensions(data.extensions);
       setDetail(null);
       setFiles(
         data.files.map(
@@ -153,6 +154,8 @@ export default function App() {
   }
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("Todos");
+  const [extension, setExtension] = useState("");
+  const [extensions, setExtensions] = useState<string[]>([]);
   const [sort, setSort] = useState("recent");
   const [favorites, setFavorites] = useState<string[]>([]);
   const [onlyFavorites, setOnlyFavorites] = useState(false);
@@ -167,7 +170,7 @@ export default function App() {
     setLoading(true);
     const timer = setTimeout(() => void refresh(), 250);
     return () => {clearTimeout(timer); ++requestNumber.current;};
-  }, [page, query, kind, sort, onlyFavorites]);
+  }, [page, query, kind, sort, onlyFavorites, extension]);
   const selected = files.find((f) => f.id === detail);
   const featured = files[feature];
   const featureCount = Math.min(files.length, 4);
@@ -176,6 +179,7 @@ export default function App() {
     setPage(1);
     setQuery("");
     setKind("Todos");
+    setExtension("");
     setOnlyFavorites(false);
     setDetail(null);
   }
@@ -274,6 +278,14 @@ export default function App() {
             {kinds.map((k) => (
               <option key={k}>{k}</option>
             ))}
+          </select>
+        </label>
+        <label className="sidebar-select">
+          <span className="sr-only">Filtrar por extensão</span>
+          <select value={extension} onChange={(e) => {setPage(1); setExtension(e.target.value);}}>
+            <option value="">Todas as extensões</option>
+            {extension && !extensions.includes(extension) && <option value={extension}>{extension.toUpperCase()} (sem arquivos)</option>}
+            {extensions.map(value => <option key={value} value={value}>{value.toUpperCase()}</option>)}
           </select>
         </label>
         <label className="side-search">
