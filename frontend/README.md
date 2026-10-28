@@ -60,7 +60,7 @@ continua usando o proxy do Vite; publicações usam `VITE_API_BASE_URL` com HTTP
 O painel carrega 24 arquivos por página. Busca sem acentos, tipo, favoritos e
 ordenação são aplicados na API antes da paginação. Alterar um filtro volta à
 primeira página. Os totais de armazenamento continuam representando toda a
-biblioteca do usuário. Favoritos seguem temporários, com até 500 seleções.
+biblioteca do usuário. Favoritos são persistidos no SQLite por proprietário do arquivo e compartilhados entre navegadores conectados à mesma API.
 A lista lateral mostra arquivos da página atual; use FAVORITOS para navegar
 por todas as seleções. A API aceita page_size entre 1 e 100 e ajusta páginas
 fora do intervalo para a última disponível.

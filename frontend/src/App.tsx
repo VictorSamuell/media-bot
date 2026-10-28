@@ -43,11 +43,12 @@ export default function App() {
     setError("");
     try {
       const params = new URLSearchParams({page:String(page),page_size:'24',q:query,kind,sort});
-      if (onlyFavorites) params.set('ids', favorites.join(','));
+      if (onlyFavorites) params.set('favorites_only', 'true');
       const response = await request('/api/files?' + params, session);
       const data = await response.json();
       if (number !== requestNumber.current) return;
       setPage(data.page); setPages(data.pages); setMatched(data.total); setUsage(data.usage);
+      setFavorites(data.favorites);
       setDetail(null);
       setFiles(
         data.files.map(
@@ -166,7 +167,7 @@ export default function App() {
     setLoading(true);
     const timer = setTimeout(() => void refresh(), 250);
     return () => {clearTimeout(timer); ++requestNumber.current;};
-  }, [page, query, kind, sort, onlyFavorites, favorites]);
+  }, [page, query, kind, sort, onlyFavorites]);
   const selected = files.find((f) => f.id === detail);
   const featured = files[feature];
   const featureCount = Math.min(files.length, 4);
@@ -178,12 +179,20 @@ export default function App() {
     setOnlyFavorites(false);
     setDetail(null);
   }
-  function favorite(id: string) {
-    if (!favorites.includes(id) && favorites.length >= 500) {setError("Limite de 500 favoritos nesta sessão.");return;}
-    setPage(1);
-    setFavorites((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
-    );
+  const favoritePending = useRef(false);
+  const [savingFavorite, setSavingFavorite] = useState(false);
+  async function favorite(id: string) {
+    if (favoritePending.current) return;
+    favoritePending.current = true;
+    setSavingFavorite(true); setError('');
+    try {
+      await request(`/api/files/${id}/favorite`, key, {
+        method:'PATCH', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({enabled:!favorites.includes(id)})
+      });
+      await refresh();
+    } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível salvar o favorito.');}
+    finally {favoritePending.current = false; setSavingFavorite(false);}
   }
   if (!connected && (restoring || key)) return (
     <main className="login-panel">
@@ -386,7 +395,7 @@ export default function App() {
                 <span>{mb(selected.size)}</span>
                 <span>{selected.name.split(".").pop()?.toUpperCase()}</span>
               </div>
-              <button className="primary" onClick={() => favorite(selected.id)}>
+              <button className="primary" disabled={savingFavorite} onClick={() => void favorite(selected.id)}>
                 {favorites.includes(selected.id)
                   ? "★ Remover dos favoritos"
                   : "☆ Adicionar aos favoritos"}
@@ -546,7 +555,8 @@ export default function App() {
                   className={`favorite ${favorites.includes(f.id) ? "saved" : ""}`}
                   aria-label={`Favoritar ${f.name}`}
                   aria-pressed={favorites.includes(f.id)}
-                  onClick={() => favorite(f.id)}
+                  disabled={savingFavorite}
+                  onClick={() => void favorite(f.id)}
                 >
                   {favorites.includes(f.id) ? "★" : "☆"}
                 </button>
@@ -591,8 +601,7 @@ export default function App() {
           <span>ⓘ</span>
           <p>
             <strong>Sua biblioteca local.</strong> Arquivos salvos pelo bot. As
-            capas são geradas a partir dos nomes. Favoritos duram até recarregar
-            a página.
+            capas são geradas a partir dos nomes. Favoritos ficam salvos na sua biblioteca, mesmo após sair.
           </p>
         </div>
       </main>

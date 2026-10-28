@@ -31,6 +31,22 @@ class Library:
         finally:
             db.close()
 
+    def set_favorite(self, owner_id: int, file_id: str, enabled: bool):
+        db = self.connect()
+        try:
+            with db:
+                db.execute('BEGIN IMMEDIATE')
+                if db.execute('SELECT id FROM files WHERE id = ? AND owner_id = ?',
+                              (file_id, owner_id)).fetchone() is None:
+                    return False
+                if enabled:
+                    db.execute('INSERT OR IGNORE INTO favorites(file_id) VALUES (?)', (file_id,))
+                else:
+                    db.execute('DELETE FROM favorites WHERE file_id = ?', (file_id,))
+                return True
+        finally:
+            db.close()
+
     def usage(self, owner_id: int):
         db = self.connect()
         try:
@@ -65,12 +81,16 @@ class Library:
         self.root.mkdir(parents=True, exist_ok=True)
         connection = sqlite3.connect(self.root / 'library.sqlite3')
         connection.row_factory = sqlite3.Row
+        connection.execute('PRAGMA foreign_keys = ON')
         connection.execute('''CREATE TABLE IF NOT EXISTS files (
             id TEXT PRIMARY KEY, owner_id INTEGER NOT NULL,
             name TEXT NOT NULL, size INTEGER NOT NULL,
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )''')
         connection.execute('CREATE INDEX IF NOT EXISTS files_owner ON files(owner_id)')
+        connection.execute("""CREATE TABLE IF NOT EXISTS favorites (
+            file_id TEXT PRIMARY KEY REFERENCES files(id) ON DELETE CASCADE
+        )""")
         return connection
 
     async def save(self, attachment, owner_id: int, name: str | None = None):

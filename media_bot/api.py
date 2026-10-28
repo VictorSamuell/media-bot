@@ -88,6 +88,7 @@ def file_kind(name):
 def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
           q: str = Query('', max_length=200), kind: str = Query('Todos', pattern='^(Todos|Vídeos|Áudios|Imagens|Documentos|Outros)$'),
           sort: str = Query('recent', pattern='^(recent|name|size)$'),
+          favorites_only: bool = False,
           ids: str | None = Query(None, max_length=17000),
           owner_id: int = Depends(owner), store: Library = Depends(library)):
     db = store.connect()
@@ -102,6 +103,8 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
         if kind != 'Todos':
             where += ' AND file_kind(name) = ?'
             params.append(kind)
+        if favorites_only:
+            where += ' AND id IN (SELECT file_id FROM favorites)'
         if ids is not None:
             identifiers = ids.split(',') if ids else []
             if len(identifiers) > 500 or any(not re.fullmatch(r'[0-9a-f]{32}', value) for value in identifiers):
@@ -110,6 +113,7 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
             params.extend(identifiers)
         db.execute('BEGIN')
         usage = dict(db.execute('SELECT COUNT(*) AS count, COALESCE(SUM(size),0) AS bytes FROM files WHERE owner_id = ?', (owner_id,)).fetchone())
+        favorites = [row[0] for row in db.execute('SELECT file_id FROM favorites JOIN files ON files.id = favorites.file_id WHERE owner_id = ?', (owner_id,))]
         total = db.execute('SELECT COUNT(*) FROM files WHERE ' + where, params).fetchone()[0]
         pages = max(1, (total + page_size - 1) // page_size)
         page = min(page, pages)
@@ -118,7 +122,7 @@ def files(page: int = Query(1, ge=1), page_size: int = Query(24, ge=1, le=100),
                           ' ORDER BY ' + order + ' LIMIT ? OFFSET ?',
                           [*params, page_size, (page - 1) * page_size]).fetchall()
         return {'files':[dict(row) for row in rows], 'owner_id':str(owner_id),
-                'page':page, 'pages':pages, 'total':total, 'usage':usage}
+                'page':page, 'pages':pages, 'total':total, 'usage':usage, 'favorites':favorites}
     finally:
         db.close()
 
@@ -151,6 +155,18 @@ def rename_file(file_id: str, body: RenameFile, owner_id: int = Depends(owner),
     if not changed:
         raise HTTPException(404, 'Arquivo não encontrado.')
     return {'id': file_id, 'name': body.name.strip()}
+
+
+class FavoriteFile(BaseModel):
+    enabled: StrictBool
+
+
+@app.patch('/api/files/{file_id}/favorite')
+def favorite_file(file_id: str, body: FavoriteFile, owner_id: int = Depends(owner),
+                  store: Library = Depends(library)):
+    if not store.set_favorite(owner_id, file_id, body.enabled):
+        raise HTTPException(404, 'Arquivo não encontrado.')
+    return {'id': file_id, 'favorite': body.enabled}
 
 
 class DeleteFile(BaseModel):
