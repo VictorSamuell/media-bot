@@ -209,6 +209,9 @@ def delete_file(file_id: str, body: DeleteFile, owner_id: int = Depends(owner),
     return {'deleted': file_id}
 
 
+from .ingest import router_for
+app.include_router(router_for(owner, library))
+
 # Montado depois das rotas da API: caminhos /api desconhecidos continuam 404.
 from fastapi.staticfiles import StaticFiles
 

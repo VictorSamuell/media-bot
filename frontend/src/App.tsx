@@ -1,3 +1,4 @@
+import ImportMedia from "./ImportMedia";
 import DeleteFile from "./DeleteFile";
 import { readSession, saveSession, removeSession, SESSION_STORAGE_KEY } from "./session";
 import RenameForm from "./RenameForm";
@@ -376,6 +377,7 @@ export default function App() {
           </button>
         </div>
         {error && <p role="alert">{error}</p>}
+        <ImportMedia accessKey={key} onImported={() => {reset(); void refresh();}} />
         <div className="breadcrumb">
           Meu espaço <span>/</span> Biblioteca{" "}
           <span className="demo-badge">LOCAL</span>
@@ -594,7 +596,7 @@ export default function App() {
                 {onlyFavorites && !favorites.length
                   ? "Use a estrela nas capas para reunir seus preferidos."
                   : !usage.count
-                    ? "Salve um arquivo pelo Telegram e clique em Atualizar."
+                    ? "Cole um link ou envie um arquivo pelo painel para começar."
                     : "Tente outro nome ou remova os filtros."}
               </p>
               <button className="primary" onClick={reset}>
@@ -617,7 +619,7 @@ export default function App() {
         <div className="demo-note">
           <span>ⓘ</span>
           <p>
-            <strong>Sua biblioteca local.</strong> Arquivos salvos pelo bot. As
+            <strong>Sua biblioteca local.</strong> Arquivos salvos pelo painel ou pelo bot. As
             capas são geradas a partir dos nomes. Favoritos ficam salvos na sua biblioteca, mesmo após sair.
           </p>
         </div>
