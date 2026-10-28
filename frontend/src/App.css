@@ -1279,3 +1279,8 @@ button:disabled {
 .delete-panel dialog::backdrop { background:#070e18c9; }
 .delete-panel dialog p { margin-top:16px; line-height:1.6; }
 .delete-name { overflow-wrap:anywhere; color:#fff; font-weight:600; }
+
+/* Entrada direta de mídia e acesso sem Telegram. */
+.login-options { display:flex; gap:8px; flex-wrap:wrap; margin:12px 0; }
+.login-options button { background:#243a4d; color:#c5dced; border:1px solid #446079; padding:10px 14px; cursor:pointer; }
+.login-options button[aria-pressed="true"] { background:#17658d; border-color:#66c0f4; color:white; }

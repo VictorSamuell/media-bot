@@ -27,6 +27,7 @@ export default function App() {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [key, setKey] = useState("");
   const [expiresAt, setExpiresAt] = useState(0);
+  const [loginMode, setLoginMode] = useState<"password" | "telegram">("password");
   const [code, setCode] = useState("");
   const [restoring, setRestoring] = useState(true);
   const [connected, setConnected] = useState(false);
@@ -86,7 +87,7 @@ export default function App() {
     setFavorites([]); setDetail(null);
   }
   useEffect(() => {
-    const expired = () => {clearSession(); setError('Sessão expirada. Envie /login ao bot para entrar novamente.');};
+    const expired = () => {clearSession(); setError('Sessão expirada. Entre novamente para continuar.');};
     window.addEventListener('session-expired', expired);
     return () => window.removeEventListener('session-expired', expired);
   }, []);
@@ -108,7 +109,7 @@ export default function App() {
     if (!expiresAt) return;
     const check = () => {
       if (Date.now() >= expiresAt) {
-        clearSession(); setError('Suas 2 horas de acesso terminaram. Envie /login ao bot.');
+        clearSession(); setError('Suas 2 horas de acesso terminaram. Entre novamente.');
       }
     };
     const timer = window.setTimeout(check, Math.max(0, expiresAt - Date.now()));
@@ -118,8 +119,8 @@ export default function App() {
   async function login() {
     setLoading(true); setError('');
     try {
-      const response = await request('/api/auth/login', '', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({code:code.trim()})
+      const response = await request(loginMode === 'password' ? '/api/auth/password' : '/api/auth/login', '', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(loginMode === 'password' ? {password:code} : {code:code.trim()})
       });
       const session = await response.json();
       const expires = Date.now() + session.expires_in * 1000;
@@ -205,7 +206,7 @@ export default function App() {
       {error && <p role="alert">{error}</p>}
       {!loading && !restoring && <>
         <button className="primary" onClick={() => void refresh()}>Tentar novamente</button>
-        <button className="primary" onClick={() => {clearSession();setError('');}}>Usar outro código</button>
+        <button className="primary" onClick={() => {clearSession();setError('');}}>Voltar ao login</button>
       </>}
     </main>
   );
@@ -213,7 +214,11 @@ export default function App() {
     return (
       <main className="login-panel">
         <h1>Entre na sua biblioteca</h1>
-        <p>Envie /login na conversa privada com o bot e cole o código recebido. Ele vale por 5 minutos e só pode ser usado uma vez.</p>
+        <div className="login-options" role="group" aria-label="Forma de acesso">
+          <button aria-pressed={loginMode === 'password'} onClick={() => {setLoginMode('password'); setCode(''); setError('');}}>Entrar com senha</button>
+          <button aria-pressed={loginMode === 'telegram'} onClick={() => {setLoginMode('telegram'); setCode(''); setError('');}}>Código do Telegram</button>
+        </div>
+        <p>{loginMode === 'password' ? 'Use a senha deste computador. Primeiro acesso? Abra configurar-acesso.cmd na pasta do projeto para definir sua senha.' : 'Envie /login ao bot e cole o código recebido. Ele vale por 5 minutos e só pode ser usado uma vez.'}</p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -221,11 +226,11 @@ export default function App() {
           }}
         >
           <label>
-            Código do Telegram
+            {loginMode === 'password' ? 'Senha' : 'Código do Telegram'}
             <input
               type="password"
-              autoComplete="one-time-code"
-              maxLength={16}
+              autoComplete={loginMode === "password" ? "current-password" : "one-time-code"}
+              maxLength={loginMode === "password" ? 128 : 16}
               required
               value={code}
               onChange={(e) => setCode(e.target.value)}

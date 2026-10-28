@@ -13,10 +13,10 @@ class Settings:
     ffmpeg_location: str | None = None
 
     @classmethod
-    def load(cls):
+    def load(cls, require_token=True):
         load_dotenv(Path(__file__).resolve().parents[1] / '.env')
         token = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
-        if not token:
+        if require_token and not token:
             raise ValueError('Preencha TELEGRAM_BOT_TOKEN no arquivo .env.')
         try:
             users = frozenset(int(x.strip()) for x in os.getenv('ALLOWED_USER_IDS', '').split(',') if x.strip())

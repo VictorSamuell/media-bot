@@ -31,7 +31,10 @@ async def run():
 
     if not (ROOT / 'frontend' / 'dist' / 'index.html').is_file():
         raise RuntimeError('Interface não preparada. Execute preparar-painel.cmd uma vez.')
-    settings = Settings.load()
+    settings = Settings.load(require_token=False)
+    from .auth import AuthStore
+    if not settings.token and not AuthStore(ROOT / "data").password_ready():
+        raise RuntimeError("Configure uma senha primeiro: abra configurar-acesso.cmd.")
     # Reserva antes de iniciar o bot: evita uma segunda execução local.
     listener = create_socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
@@ -42,7 +45,7 @@ async def run():
         listener.close()
         raise RuntimeError('A porta 8000 está ocupada. Pare a API antiga antes de iniciar novamente.') from None
 
-    application = build_application(settings)
+    application = build_application(settings) if settings.token else None
     server = uvicorn.Server(uvicorn.Config('media_bot.api:app', host='127.0.0.1', port=8000,
                                            log_level='warning', access_log=False))
     instance = secrets.token_hex(16)
@@ -50,11 +53,12 @@ async def run():
     initialized = False
     RUNTIME.mkdir(exist_ok=True)
     try:
-        print('Conectando ao Telegram...', flush=True)
-        await asyncio.wait_for(application.initialize(), timeout=45)
-        initialized = True
-        await application.start()
-        await application.updater.start_polling(allowed_updates=['message'], bootstrap_retries=0)
+        if application:
+            print('Conectando ao Telegram...', flush=True)
+            await asyncio.wait_for(application.initialize(), timeout=45)
+            initialized = True
+            await application.start()
+            await application.updater.start_polling(allowed_updates=['message'], bootstrap_retries=0)
         api_task = asyncio.create_task(server.serve(sockets=[listener]))
         for _ in range(100):
             if api_task.done():
@@ -67,7 +71,7 @@ async def run():
             raise RuntimeError('A API não ficou pronta no prazo esperado.')
         STATUS.write_text(json.dumps({'instance': instance}), encoding='utf-8')
         print('Media Saver pronto: http://127.0.0.1:8000\n'
-              'Envie /login ao bot para entrar.\n'
+              'Entre com sua senha ou com /login do Telegram, se configurado.\n'
               'Para encerrar, use parar.cmd ou Ctrl+C nesta janela.', flush=True)
         webbrowser.open('http://127.0.0.1:8000')
         while not api_task.done() and not server.should_exit:
@@ -77,9 +81,9 @@ async def run():
     finally:
         print('Encerrando Media Saver...', flush=True)
         server.should_exit = True
-        if application.updater.running:
+        if application and application.updater.running:
             await application.updater.stop()
-        if application.running:
+        if application and application.running:
             await application.stop()
         if initialized:
             await application.shutdown()

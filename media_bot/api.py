@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, StrictStr, StrictBool
+from pydantic import BaseModel, StrictStr, StrictBool, Field
 
 from media_bot.library import Library, normalize_search
 from media_bot.auth import AuthStore
@@ -41,7 +41,7 @@ def owner(authorization: str = Header(default=''), auth: AuthStore = Depends(aut
     token = authorization.removeprefix('Bearer ')
     owner_id = auth.owner(token) if authorization.startswith('Bearer ') else None
     if owner_id is None:
-        raise HTTPException(401, 'Sessão inválida ou expirada. Gere outro código com /login no bot.')
+        raise HTTPException(401, 'Sessão inválida ou expirada. Entre novamente no painel.')
     return owner_id
 
 
@@ -58,6 +58,21 @@ def login(body: LoginCode, auth: AuthStore = Depends(auth_store)):
         raise HTTPException(401, 'Código inválido, usado ou expirado. Envie /login ao bot.')
     from fastapi.responses import JSONResponse
     return JSONResponse({'token': token, 'expires_in':7200}, headers={'Cache-Control':'no-store'})
+
+
+class PasswordLogin(BaseModel):
+    password: StrictStr = Field(min_length=1, max_length=128)
+
+
+@app.post('/api/auth/password')
+def password_login(body: PasswordLogin, auth: AuthStore = Depends(auth_store)):
+    token, error = auth.exchange_password(body.password)
+    if error == 'limited':
+        raise HTTPException(429, 'Muitas tentativas. Aguarde um minuto.', headers={'Retry-After': '60'})
+    if error:
+        raise HTTPException(401, 'Senha inválida ou acesso por senha ainda não configurado neste PC.')
+    from fastapi.responses import JSONResponse
+    return JSONResponse({'token': token, 'expires_in': 7200}, headers={'Cache-Control': 'no-store'})
 
 
 @app.post('/api/auth/logout')
