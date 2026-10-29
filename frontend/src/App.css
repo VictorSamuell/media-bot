@@ -1292,3 +1292,9 @@ button:disabled {
 .import-media p { color:#aec4d5; margin:12px 0; }
 .import-media [role="alert"] { color:#ffb5a7; }
 .import-media button:disabled { opacity:.6; cursor:wait; }
+
+.upload-progress { margin:16px 0; padding:14px; background:#0e1822; border:1px solid #365369; color:#c5dced; }
+.upload-progress > div { display:flex; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.upload-progress strong { color:#66c0f4; font-variant-numeric:tabular-nums; }
+.upload-progress progress { display:block; width:100%; height:12px; accent-color:#37a9e8; }
+.upload-progress small { display:block; margin-top:8px; color:#9cb3c5; overflow-wrap:anywhere; }

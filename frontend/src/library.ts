@@ -31,7 +31,7 @@ export function category(name: string): Kind {
     return "Documentos";
   return "Outros";
 }
-export async function request(path: string, key: string, options: RequestInit = {}) {
+export function apiUrl(path: string) {
   const local = ['127.0.0.1', 'localhost', '[::1]'].includes(window.location.hostname);
   const base = local ? '' : (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
   if (base && new URL(base).protocol !== 'https:') {
@@ -40,7 +40,11 @@ export async function request(path: string, key: string, options: RequestInit = 
   if (!base && import.meta.env.PROD && !local) {
     throw new Error('A conexão com a API ainda não foi configurada nesta publicação.');
   }
-  const response = await fetch(base + path, {
+  return base + path;
+}
+
+export async function request(path: string, key: string, options: RequestInit = {}) {
+  const response = await fetch(apiUrl(path), {
     ...options,
     headers: { ...options.headers, Authorization: `Bearer ${key}` },
     cache: "no-store",

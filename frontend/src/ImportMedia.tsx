@@ -1,5 +1,5 @@
 import {useRef, useState} from "react";
-import {request} from "./library";
+import {apiUrl, request} from "./library";
 
 export default function ImportMedia({accessKey, onImported}: {accessKey:string; onImported:()=>void}) {
   const [tab, setTab] = useState<'link'|'file'>('link');
@@ -8,6 +8,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
   const [name, setName] = useState('');
   const [file, setFile] = useState<File|null>(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const pending = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
@@ -28,7 +29,26 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
         const suffix = original.includes('.') ? original.slice(original.lastIndexOf('.')) : '';
         let chosen = name.trim() || original;
         if (suffix && !chosen.toLowerCase().endsWith(suffix.toLowerCase())) chosen += suffix;
-        response = await request('/api/import/file?' + new URLSearchParams({name:chosen}), accessKey, {method:'POST', headers:{'Content-Type':'application/octet-stream'}, body:file});
+        setProgress(0);
+        response = await new Promise<Response>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', apiUrl('/api/import/file?' + new URLSearchParams({name:chosen})));
+          xhr.setRequestHeader('Authorization', `Bearer ${accessKey}`);
+          xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+          xhr.responseType = 'json';
+          xhr.upload.onprogress = event => {
+            if (event.lengthComputable) setProgress(Math.min(99, Math.round(event.loaded / event.total * 100)));
+          };
+          xhr.onload = () => {
+            if (xhr.status === 401) window.dispatchEvent(new Event('session-expired'));
+            if (xhr.status >= 200 && xhr.status < 300) resolve(new Response(JSON.stringify(xhr.response), {status:xhr.status, headers:{'Content-Type':'application/json'}}));
+            else reject(new Error(xhr.response?.detail || `Falha na API (${xhr.status}).`));
+          };
+          xhr.onerror = () => reject(new Error('Falha de conexão durante o envio.'));
+          xhr.onabort = () => reject(new Error('Envio cancelado.'));
+          xhr.send(file);
+        });
+        setProgress(100);
       }
       const saved = await response.json();
       setMessage(`${saved.name} salvo na biblioteca.`);
@@ -36,7 +56,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
       if(input.current) input.current.value = '';
       onImported();
     } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível importar.');}
-    finally {pending.current = false; setBusy(false);}
+    finally {pending.current = false; setBusy(false); setProgress(null);}
   }
   return <details className="import-media">
     <summary>＋ Adicionar à biblioteca</summary>
@@ -55,7 +75,11 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
         <p>Arquivos menores que 50 MB. A extensão será mantida.</p>
         <button className="primary" type="submit">{busy ? 'Processando…' : 'Salvar na biblioteca'}</button>
       </fieldset>
-      {busy && <p role="status">Aguarde o processamento. Mantenha esta página aberta até terminar.</p>}
+      {busy && (tab === 'file' && progress !== null ? <div className="upload-progress" role="status" aria-live="polite">
+        <div><span>Enviando arquivo</span><strong>{progress}%</strong></div>
+        <progress max="100" value={progress} aria-label="Progresso do envio do arquivo" />
+        <small>{file?.name} · {(file!.size * progress / 100 / 1_000_000).toLocaleString('pt-BR', {maximumFractionDigits:1})} de {(file!.size / 1_000_000).toLocaleString('pt-BR', {maximumFractionDigits:1})} MB enviados</small>
+      </div> : <p role="status">Processando o link. Mantenha esta página aberta até terminar.</p>)}
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
     </form>
