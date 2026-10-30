@@ -10,6 +10,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
   const pending = useRef(false);
+  const uploadRequest = useRef<XMLHttpRequest | null>(null);
   const input = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -32,6 +33,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
         setProgress(0);
         response = await new Promise<Response>((resolve, reject) => {
           const xhr = new XMLHttpRequest();
+          uploadRequest.current = xhr;
           xhr.open('POST', apiUrl('/api/import/file?' + new URLSearchParams({name:chosen})));
           xhr.setRequestHeader('Authorization', `Bearer ${accessKey}`);
           xhr.setRequestHeader('Content-Type', 'application/octet-stream');
@@ -56,7 +58,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
       if(input.current) input.current.value = '';
       onImported();
     } catch(e) {setError(e instanceof Error ? e.message : 'Não foi possível importar.');}
-    finally {pending.current = false; setBusy(false); setProgress(null);}
+    finally {uploadRequest.current = null; pending.current = false; setBusy(false); setProgress(null);}
   }
   return <details className="import-media">
     <summary>＋ Adicionar à biblioteca</summary>
@@ -79,6 +81,7 @@ export default function ImportMedia({accessKey, onImported}: {accessKey:string; 
         <div><span>Enviando arquivo</span><strong>{progress}%</strong></div>
         <progress max="100" value={progress} aria-label="Progresso do envio do arquivo" />
         <small>{file?.name} · {(file!.size * progress / 100 / 1_000_000).toLocaleString('pt-BR', {maximumFractionDigits:1})} de {(file!.size / 1_000_000).toLocaleString('pt-BR', {maximumFractionDigits:1})} MB enviados</small>
+        <button type="button" className="cancel-upload" onClick={() => uploadRequest.current?.abort()}>Cancelar envio</button>
       </div> : <p role="status">Processando o link. Mantenha esta página aberta até terminar.</p>)}
       {error && <p role="alert">{error}</p>}
       {message && <p role="status">{message}</p>}
