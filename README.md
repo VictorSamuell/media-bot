@@ -102,6 +102,14 @@ arquivos reais com busca sem acentos, filtros, ordenação, download e favoritos
 Use o iniciador local e entre com senha, ou envie /login ao bot para entrar por código.
 O passo a passo está em [frontend/README.md](frontend/README.md).
 
+### Demonstração online
+
+Abra o [Media Saver no Cloudflare Pages](https://media-bot.pages.dev/).
+Essa página publica a interface; a biblioteca e os arquivos continuam no computador
+que executa a API. Para carregar a biblioteca pela demonstração online, a API precisa
+estar ligada e acessível pela URL de túnel configurada no build do site. Se o túnel
+estiver desligado ou a URL tiver mudado, use o painel local com `iniciar.cmd`.
+
 Com Node.js 24 instalado:
 
 ```powershell
