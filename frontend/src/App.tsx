@@ -24,6 +24,68 @@ function Cover({ id, name }: { id: string; name: string }) {
     </div>
   );
 }
+
+const previewTypes: Record<string, { kind: "audio" | "video"; mime: string }> = {
+  mp3: { kind: "audio", mime: "audio/mpeg" },
+  m4a: { kind: "audio", mime: "audio/mp4" },
+  wav: { kind: "audio", mime: "audio/wav" },
+  ogg: { kind: "audio", mime: "audio/ogg" },
+  mp4: { kind: "video", mime: "video/mp4" },
+  webm: { kind: "video", mime: "video/webm" },
+};
+
+function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string }) {
+  const extension = file.name.split(".").pop()?.toLowerCase() || "";
+  const preview = previewTypes[extension];
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const controller = useRef<AbortController | null>(null);
+
+  useEffect(() => () => {
+    controller.current?.abort();
+    if (url) URL.revokeObjectURL(url);
+  }, [url]);
+
+  if (!preview) return null;
+
+  async function loadPreview() {
+    if (loading || url) return;
+    const abort = new AbortController();
+    controller.current = abort;
+    setLoading(true);
+    setError("");
+    try {
+      const response = await request(`/api/files/${file.id}/download`, accessKey, { signal: abort.signal });
+      const blob = await response.blob();
+      if (abort.signal.aborted) return;
+      setUrl(URL.createObjectURL(new Blob([blob], { type: preview.mime })));
+    } catch (cause) {
+      if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : "Não foi possível abrir a prévia.");
+    } finally {
+      if (!abort.signal.aborted) setLoading(false);
+    }
+  }
+
+  return (
+    <div className={`detail-preview ${preview.kind}`}>
+      {!url ? (
+        <>
+          <button className="preview-button" onClick={() => void loadPreview()} disabled={loading}>
+            {loading ? "Preparando prévia…" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
+          </button>
+          <span>Carrega o arquivo completo; arquivos maiores podem demorar.</span>
+          {error && <p role="alert">{error}</p>}
+        </>
+      ) : preview.kind === "video" ? (
+        <video controls playsInline preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} />
+      ) : (
+        <audio controls preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} />
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [files, setFiles] = useState<MediaFile[]>([]);
   const [key, setKey] = useState("");
@@ -414,6 +476,7 @@ export default function App() {
                 <span>{mb(selected.size)}</span>
                 <span>{selected.name.split(".").pop()?.toUpperCase()}</span>
               </div>
+              <MediaPreview key={`preview-${selected.id}`} file={selected} accessKey={key} />
               <button className="primary" disabled={savingFavorite} onClick={() => void favorite(selected.id)}>
                 {favorites.includes(selected.id)
                   ? "★ Remover dos favoritos"

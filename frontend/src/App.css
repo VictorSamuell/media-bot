@@ -874,6 +874,44 @@ main {
 .detail-panel .cover-title {
   font-size: 33px;
 }
+.detail-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0;
+  color: #94adc1;
+  font-size: 11px;
+}
+.detail-preview .preview-button {
+  background: #20394d;
+  border: 1px solid #416783;
+  color: #d9efff;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.detail-preview .preview-button:hover:not(:disabled) {
+  background: #2b526d;
+}
+.detail-preview .preview-button:disabled {
+  cursor: wait;
+  opacity: .7;
+}
+.detail-preview audio {
+  width: min(100%, 520px);
+  accent-color: #66c0f4;
+}
+.detail-preview video {
+  display: block;
+  width: min(100%, 780px);
+  max-height: 440px;
+  background: #080d12;
+  border: 1px solid #35516a;
+}
+.detail-preview [role="alert"] {
+  flex-basis: 100%;
+  color: #ffb5a7;
+}
 @media (min-width: 1500px) {
   main {
     padding: 30px 55px 40px;
