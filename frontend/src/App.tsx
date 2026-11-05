@@ -47,7 +47,22 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
     if (url) URL.revokeObjectURL(url);
   }, [url]);
 
-  if (!preview) return null;
+  if (!preview) return (
+    <div className="detail-preview unsupported">
+      <span>Prévia disponível para MP3, M4A, WAV, OGG, MP4 e WebM.</span>
+    </div>
+  );
+
+  function cancelPreview() {
+    controller.current?.abort();
+    controller.current = null;
+    setLoading(false);
+  }
+
+  function closePreview() {
+    setError("");
+    setUrl("");
+  }
 
   async function loadPreview() {
     if (loading || url) return;
@@ -74,13 +89,22 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
           <button className="preview-button" onClick={() => void loadPreview()} disabled={loading}>
             {loading ? "Preparando prévia…" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
           </button>
+          {loading && <button className="preview-cancel" onClick={cancelPreview}>Cancelar</button>}
           <span>Carrega o arquivo completo; arquivos maiores podem demorar.</span>
           {error && <p role="alert">{error}</p>}
         </>
       ) : preview.kind === "video" ? (
-        <video controls playsInline preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} />
+        <>
+          <video controls playsInline preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} onError={() => setError("O navegador não conseguiu reproduzir este formato de vídeo.")} />
+          <button className="preview-cancel" onClick={closePreview}>Fechar prévia</button>
+          {error && <p role="alert">{error}</p>}
+        </>
       ) : (
-        <audio controls preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} />
+        <>
+          <audio controls preload="metadata" src={url} aria-label={`Prévia de ${file.name}`} onError={() => setError("O navegador não conseguiu reproduzir este formato de áudio.")} />
+          <button className="preview-cancel" onClick={closePreview}>Fechar prévia</button>
+          {error && <p role="alert">{error}</p>}
+        </>
       )}
     </div>
   );

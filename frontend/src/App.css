@@ -897,6 +897,19 @@ main {
   cursor: wait;
   opacity: .7;
 }
+.detail-preview .preview-cancel {
+  background: transparent;
+  border: 1px solid #496275;
+  color: #b9cede;
+  padding: 9px 12px;
+  cursor: pointer;
+}
+.detail-preview .preview-cancel:hover {
+  background: #20394d;
+}
+.detail-preview.unsupported {
+  margin-top: 20px;
+}
 .detail-preview audio {
   width: min(100%, 520px);
   accent-color: #66c0f4;
