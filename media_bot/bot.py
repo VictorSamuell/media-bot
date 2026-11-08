@@ -21,6 +21,7 @@ from yt_dlp.utils import DownloadError
 from .config import Settings
 from .library import Library
 from .auth import AuthStore
+# o MAX_UPLOAD_BYTES do .downloader aparentemente é 50 MB
 from .downloader import MAX_UPLOAD_BYTES, download_async, validate_url
 
 logger = logging.getLogger(__name__)
@@ -79,6 +80,7 @@ class MediaBot:
         attachment = update.message.document
         # Limite conservador para baixar anexos pela API hospedada do Telegram.
         if attachment.file_size is None or attachment.file_size >= 20_000_000:
+        # colocando o limite de 20 mb por enquanto 20.000.000
             await update.message.reply_text('Nesta primeira versão, envie documentos menores que 20 MB.')
             return
         await self.ask_name(update, 'document', attachment, None)
@@ -384,7 +386,7 @@ class MediaBot:
         try:
             await status.edit_text(text)
         except TelegramError:
-            logger.warning('Não foi possível enviar a mensagem de erro.')
+            logger.warning('Não foi possível enviar a mensagem de erro!')
 
 
 async def on_error(update, context):
