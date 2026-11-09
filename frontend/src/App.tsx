@@ -25,13 +25,18 @@ function Cover({ id, name }: { id: string; name: string }) {
   );
 }
 
-const previewTypes: Record<string, { kind: "audio" | "video"; mime: string }> = {
+const previewTypes: Record<string, { kind: "audio" | "video" | "image"; mime: string }> = {
   mp3: { kind: "audio", mime: "audio/mpeg" },
   m4a: { kind: "audio", mime: "audio/mp4" },
   wav: { kind: "audio", mime: "audio/wav" },
   ogg: { kind: "audio", mime: "audio/ogg" },
   mp4: { kind: "video", mime: "video/mp4" },
   webm: { kind: "video", mime: "video/webm" },
+  jpg: { kind: "image", mime: "image/jpeg" },
+  jpeg: { kind: "image", mime: "image/jpeg" },
+  png: { kind: "image", mime: "image/png" },
+  webp: { kind: "image", mime: "image/webp" },
+  gif: { kind: "image", mime: "image/gif" },
 };
 
 function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string }) {
@@ -49,7 +54,7 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
 
   if (!preview) return (
     <div className="detail-preview unsupported">
-      <span>Prévia disponível para MP3, M4A, WAV, OGG, MP4 e WebM.</span>
+      <span>Prévia disponível para imagens, áudios e vídeos compatíveis.</span>
     </div>
   );
 
@@ -87,11 +92,16 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
       {!url ? (
         <>
           <button className="preview-button" onClick={() => void loadPreview()} disabled={loading}>
-            {loading ? "Preparando prévia…" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
+            {loading ? "Preparando prévia…" : preview.kind === "image" ? "▧ Ver imagem" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
           </button>
           {loading && <button className="preview-cancel" onClick={cancelPreview}>Cancelar</button>}
           <span>Carrega o arquivo completo; arquivos maiores podem demorar.</span>
           {error && <p role="alert">{error}</p>}
+        </>
+      ) : preview.kind === "image" ? (
+        <>
+          <img className="image-preview" src={url} alt={`Prévia de ${file.name}`} />
+          <button className="preview-cancel" onClick={closePreview}>Fechar prévia</button>
         </>
       ) : preview.kind === "video" ? (
         <>

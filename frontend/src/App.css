@@ -921,6 +921,14 @@ main {
   background: #080d12;
   border: 1px solid #35516a;
 }
+.detail-preview .image-preview {
+  display: block;
+  max-width: min(100%, 780px);
+  max-height: 440px;
+  object-fit: contain;
+  background: #080d12;
+  border: 1px solid #35516a;
+}
 .detail-preview [role="alert"] {
   flex-basis: 100%;
   color: #ffb5a7;
