@@ -25,7 +25,7 @@ function Cover({ id, name }: { id: string; name: string }) {
   );
 }
 
-const previewTypes: Record<string, { kind: "audio" | "video" | "image"; mime: string }> = {
+const previewTypes: Record<string, { kind: "audio" | "video" | "image" | "pdf"; mime: string }> = {
   mp3: { kind: "audio", mime: "audio/mpeg" },
   m4a: { kind: "audio", mime: "audio/mp4" },
   wav: { kind: "audio", mime: "audio/wav" },
@@ -37,6 +37,7 @@ const previewTypes: Record<string, { kind: "audio" | "video" | "image"; mime: st
   png: { kind: "image", mime: "image/png" },
   webp: { kind: "image", mime: "image/webp" },
   gif: { kind: "image", mime: "image/gif" },
+  pdf: { kind: "pdf", mime: "application/pdf" },
 };
 
 function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string }) {
@@ -54,7 +55,7 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
 
   if (!preview) return (
     <div className="detail-preview unsupported">
-      <span>Prévia disponível para imagens, áudios e vídeos compatíveis.</span>
+      <span>Prévia disponível para imagens, áudios, vídeos compatíveis e PDF.</span>
     </div>
   );
 
@@ -92,11 +93,16 @@ function MediaPreview({ file, accessKey }: { file: MediaFile; accessKey: string 
       {!url ? (
         <>
           <button className="preview-button" onClick={() => void loadPreview()} disabled={loading}>
-            {loading ? "Preparando prévia…" : preview.kind === "image" ? "▧ Ver imagem" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
+            {loading ? "Preparando prévia…" : preview.kind === "image" ? "▧ Ver imagem" : preview.kind === "pdf" ? "▤ Abrir PDF" : `▶ Reproduzir ${preview.kind === "audio" ? "áudio" : "vídeo"}`}
           </button>
           {loading && <button className="preview-cancel" onClick={cancelPreview}>Cancelar</button>}
           <span>Carrega o arquivo completo; arquivos maiores podem demorar.</span>
           {error && <p role="alert">{error}</p>}
+        </>
+      ) : preview.kind === "pdf" ? (
+        <>
+          <iframe className="pdf-preview" src={url} title={`Prévia de ${file.name}`} />
+          <button className="preview-cancel" onClick={closePreview}>Fechar prévia</button>
         </>
       ) : preview.kind === "image" ? (
         <>

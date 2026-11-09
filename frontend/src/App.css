@@ -929,6 +929,12 @@ main {
   background: #080d12;
   border: 1px solid #35516a;
 }
+.detail-preview .pdf-preview {
+  width: min(100%, 780px);
+  min-height: 540px;
+  background: #fff;
+  border: 1px solid #35516a;
+}
 .detail-preview [role="alert"] {
   flex-basis: 100%;
   color: #ffb5a7;
