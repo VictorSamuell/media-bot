@@ -1,5 +1,7 @@
 """Códigos e sessões compartilhados entre bot e API, sem segredos em texto no banco."""
+# hashlib permite gerar resumos criptográficos (SHA-256 e scrypt) para não salvar códigos, tokens ou senhas em texto puro.
 import hashlib
+# secrets gera tokens criptograficamente seguros para autenticação e proteção contra ataques de força bruta.
 import secrets
 import sqlite3
 import time
@@ -13,6 +15,7 @@ class AuthStore:
 
     @contextmanager
     def db(self):
+        # Context manager que abre o banco SQLite, garante as tabelas e controla a transação com BEGIN IMMEDIATE.
         self.root.mkdir(parents=True, exist_ok=True)
         db = sqlite3.connect(self.root / 'auth.sqlite3', timeout=10)
         try:
@@ -29,9 +32,11 @@ class AuthStore:
 
     @staticmethod
     def digest(value):
+        # Converte o código ou token em um hash SHA-256 hexadecimal antes de consultar ou salvar no banco.
         return hashlib.sha256(value.encode()).hexdigest()
 
     def issue(self, owner):
+        # Gera um código temporário de 16 caracteres hexadecimais válido por 5 minutos (300 segundos).
         code = secrets.token_hex(8).upper()
         now = time.time()
         with self.db() as db:
@@ -40,6 +45,7 @@ class AuthStore:
         return code
 
     def exchange(self, code):
+        # Troca o código de uso único do Telegram por um token de sessão válido por 2 horas (7200 segundos), com limite de tentativas.
         now = time.time()
         with self.db() as db:
             db.execute('DELETE FROM attempts WHERE time <= ?', (now - 60,))

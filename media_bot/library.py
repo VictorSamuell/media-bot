@@ -3,13 +3,16 @@ import sqlite3
 """Biblioteca qque permite copiar arquivos (shutil)"""
 import shutil
 import re
+# unicodedata permite decompor caracteres acentuados (ex.: 'á' -> 'a' + acento) para buscas sem acentos.
 import unicodedata
 from pathlib import Path
+# uuid4 gera identificadores únicos aleatórios de 128 bits para evitar colisão de nomes no disco.
 from uuid import uuid4
 
 
 def normalize_search(text: str) -> str:
     """Normaliza apenas para comparação, preservando o nome original salvo."""
+    # 'NFD' separa a letra base do acento (categoria 'Mn' = Nonspacing_Mark) e casefold() padroniza minúsculas.
     return ''.join(
         character for character in unicodedata.normalize('NFD', text.casefold())
         if unicodedata.category(character) != 'Mn'
@@ -18,6 +21,7 @@ def normalize_search(text: str) -> str:
 
 class Library:
     def rename(self, owner_id: int, file_id: str, name: str):
+        # Valida o novo nome impedindo caminhos relativos ('..') e caracteres proibidos em sistemas de arquivos.
         name = name.strip()
         if not name or len(name) > 200 or name in ('.', '..') or any(
             not c.isprintable() or c in '/\\:*?"<>|' for c in name
@@ -32,6 +36,7 @@ class Library:
             db.close()
 
     def set_favorite(self, owner_id: int, file_id: str, enabled: bool):
+        # Marca ou desmarca um arquivo como favorito garantindo que ele pertença ao usuário (owner_id).
         db = self.connect()
         try:
             with db:
@@ -48,6 +53,7 @@ class Library:
             db.close()
 
     def usage(self, owner_id: int):
+        # Calcula o total de arquivos e a soma de bytes ocupados pelo usuário usando COALESCE para retornar 0 se vazio.
         db = self.connect()
         try:
             row = db.execute('SELECT COUNT(*) AS count, COALESCE(SUM(size), 0) AS bytes '

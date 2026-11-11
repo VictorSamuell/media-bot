@@ -4,11 +4,14 @@ from urllib.parse import urlsplit
 
 from yt_dlp import YoutubeDL
 
+# Limite de 50 MB (50.000.000 bytes) para envio pelo bot e importação na biblioteca.
 MAX_UPLOAD_BYTES = 50_000_000
+# Plataformas permitidas para download de mídia.
 DOMAINS = ('youtube.com', 'youtu.be', 'instagram.com', 'tiktok.com')
 
 
 def validate_url(text: str) -> str:
+    # Verifica se o texto contém uma única URL HTTP/HTTPS válida pertencente aos domínios suportados, sem credenciais embutidas.
     url = text.strip()
     try:
         parsed = urlsplit(url)
@@ -33,6 +36,7 @@ class QuietLogger:
 
 
 def download(url: str, mode: str, directory: Path, ffmpeg_location=None) -> Path:
+    # Configura o yt-dlp e o FFmpeg para extrair MP3 (192 kbps) no modo áudio ou converter para MP4 no modo vídeo.
     audio = mode == 'audio'
     options = {
         'format': 'bestaudio/best' if audio else 'bestvideo+bestaudio/best',

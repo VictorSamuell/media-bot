@@ -4,9 +4,11 @@ import re
 from pathlib import Path
 
 from dotenv import load_dotenv
+# FastAPI cria as rotas HTTP da API local e faz a injeção de dependências com Depends.
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+# Pydantic valida automaticamente o formato e os tipos dos dados recebidos no corpo (JSON) das requisições.
 from pydantic import BaseModel, StrictStr, StrictBool, Field
 
 from media_bot.library import Library, normalize_search
@@ -14,6 +16,7 @@ from media_bot.auth import AuthStore
 
 ROOT = Path(__file__).resolve().parents[1]
 def create_app():
+    # Carrega variáveis do .env e configura o CORS apenas para origens HTTPS explícitas (como o Cloudflare Pages).
     load_dotenv(ROOT / '.env')
     application = FastAPI(title='Media Saver API')
     origins = [origin.strip().rstrip('/') for origin in
@@ -38,6 +41,7 @@ def auth_store():
 
 
 def owner(authorization: str = Header(default=''), auth: AuthStore = Depends(auth_store)):
+    # Extrai o token Bearer do cabeçalho Authorization e retorna o ID do proprietário autenticado.
     token = authorization.removeprefix('Bearer ')
     owner_id = auth.owner(token) if authorization.startswith('Bearer ') else None
     if owner_id is None:
